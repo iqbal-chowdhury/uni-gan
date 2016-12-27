@@ -31,6 +31,7 @@ class GAN:
 		img_size = self.options['image_size']
 		t_real_image = tf.placeholder('float32', [self.options['batch_size'],img_size, img_size, 3 ], name = 'real_image')
 		t_wrong_image = tf.placeholder('float32', [self.options['batch_size'],img_size, img_size, 3 ], name = 'wrong_image')
+		#t_real_caption = tf.placeholder('float32', [self.options['batch_size'], self.options['caption_vector_length']], name = 'real_caption_input')
 		t_real_caption = tf.placeholder('float32', [self.options['batch_size'], self.options['caption_vector_length']], name = 'real_caption_input')
 		t_z = tf.placeholder('float32', [self.options['batch_size'], self.options['z_dim']])
 
@@ -151,6 +152,30 @@ class GAN:
 		h4 = ops.deconv2d(h3, [self.options['batch_size'], s, s, 3], name='g_h4')
 		
 		return (tf.tanh(h4)/2. + 0.5)
+
+	# GENERATOR IMPLEMENTATION based on : https://github.com/carpedm20/DCGAN-tensorflow/blob/master/model.py
+	def seq_encoder(self, t_z, t_text_embedding):
+		s = self.options['image_size']
+		s2, s4, s8, s16 = int(s / 2), int(s / 4), int(s / 8), int(s / 16)
+
+		reduced_text_embedding = ops.lrelu(ops.linear(t_text_embedding, self.options['t_dim'], 'g_embedding'))
+		z_concat = tf.concat(1, [t_z, reduced_text_embedding])
+		z_ = ops.linear(z_concat, self.options['gf_dim'] * 8 * s16 * s16, 'g_h0_lin')
+		h0 = tf.reshape(z_, [-1, s16, s16, self.options['gf_dim'] * 8])
+		h0 = tf.nn.relu(self.g_bn0(h0))
+
+		h1 = ops.deconv2d(h0, [self.options['batch_size'], s8, s8, self.options['gf_dim'] * 4], name='g_h1')
+		h1 = tf.nn.relu(self.g_bn1(h1))
+
+		h2 = ops.deconv2d(h1, [self.options['batch_size'], s4, s4, self.options['gf_dim'] * 2], name='g_h2')
+		h2 = tf.nn.relu(self.g_bn2(h2))
+
+		h3 = ops.deconv2d(h2, [self.options['batch_size'], s2, s2, self.options['gf_dim'] * 1], name='g_h3')
+		h3 = tf.nn.relu(self.g_bn3(h3))
+
+		h4 = ops.deconv2d(h3, [self.options['batch_size'], s, s, 3], name='g_h4')
+
+		return (tf.tanh(h4) / 2. + 0.5)
 
 	# DISCRIMINATOR IMPLEMENTATION based on : https://github.com/carpedm20/DCGAN-tensorflow/blob/master/model.py
 	def discriminator(self, image, t_text_embedding, reuse=False):

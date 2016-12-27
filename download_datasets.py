@@ -51,10 +51,10 @@ def download_dataset(data_name):
         # the original google drive link at https://drive.google.com/file/d/0B0ywwgffWnLLcms2WWJQRFNSWXM/view
         # from https://github.com/reedscot/icml2016 is problematic to download automatically, so included
         # the text_c10 directory from that archive as a bzipped file in the repo
-        captions_tbz = os.path.join(DATA_DIR, 'flowers_text_c10.tar.bz2')
-        print('Extracting ' + captions_tbz)
-        captions_tar = tarfile.open(captions_tbz, 'r:bz2')
-        captions_tar.extractall(flowers_dir)
+        #captions_tbz = os.path.join(DATA_DIR, 'flowers_text_c10.tar.bz2')
+        #print('Extracting ' + captions_tbz)
+        #captions_tar = tarfile.open(captions_tbz, 'r:bz2')
+        #captions_tar.extractall(flowers_dir)
 
         flowers_url = 'http://www.robots.ox.ac.uk/~vgg/data/flowers/102/102flowers.tgz'
         print('Downloading ' + flowers_jpg_tgz + ' from ' + flowers_url)
@@ -105,7 +105,7 @@ def download_dataset(data_name):
 def main():
     create_data_paths()
     # TODO: make configurable via command-line
-    download_dataset('flowers')
+    #download_dataset('flowers')
     download_dataset('skipthoughts')
     download_dataset('nltk_punkt')
     download_dataset('pretrained_model')
