@@ -106,9 +106,9 @@ def main():
     create_data_paths()
     # TODO: make configurable via command-line
     #download_dataset('flowers')
-    download_dataset('skipthoughts')
+    #download_dataset('skipthoughts')
     download_dataset('nltk_punkt')
-    download_dataset('pretrained_model')
+    #download_dataset('pretrained_model')
     print('Done')
 
 

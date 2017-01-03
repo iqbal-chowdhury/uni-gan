@@ -44,6 +44,8 @@ class batch_norm(object):
 
 		return normed
 
+
+
 def binary_cross_entropy(preds, targets, name=None):
 	"""Computes binary cross entropy given `preds`.
 
@@ -68,12 +70,11 @@ def conv_cond_concat(x, y):
 	y_shapes = y.get_shape()
 	return tf.concat(3, [x, y*tf.ones([x_shapes[0], x_shapes[1], x_shapes[2], y_shapes[3]])])
 
-def conv2d(input_, output_dim, 
-		   k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02,
+def conv2d(input_, output_dim, k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02,
 		   name="conv2d"):
 	with tf.variable_scope(name):
-		w = tf.get_variable('w', [k_h, k_w, input_.get_shape()[-1], output_dim],
-							initializer=tf.truncated_normal_initializer(stddev=stddev))
+		#w = tf.get_variable('w', [k_h, k_w, input_.get_shape()[-1], output_dim], initializer=tf.truncated_normal_initializer(stddev=stddev))
+		w = tf.get_variable('w', [k_h, k_w, input_.get_shape()[-1], output_dim], initializer = tf.contrib.layers.xavier_initializer())
 		conv = tf.nn.conv2d(input_, w, strides=[1, d_h, d_w, 1], padding='SAME')
 
 		biases = tf.get_variable('biases', [output_dim], initializer=tf.constant_initializer(0.0))
@@ -81,14 +82,12 @@ def conv2d(input_, output_dim,
 
 		return conv
 
-def deconv2d(input_, output_shape,
-			 k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02,
+def deconv2d(input_, output_shape, k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02,
 			 name="deconv2d", with_w=False):
 	with tf.variable_scope(name):
 		# filter : [height, width, output_channels, in_channels]
-		w = tf.get_variable('w', [k_h, k_h, output_shape[-1], input_.get_shape()[-1]],
-							initializer=tf.random_normal_initializer(stddev=stddev))
-		
+		#w = tf.get_variable('w', [k_h, k_h, output_shape[-1], input_.get_shape()[-1]], initializer=tf.random_normal_initializer(stddev=stddev))
+		w = tf.get_variable('w', [k_h, k_h, output_shape[-1], input_.get_shape()[-1]], initializer = tf.contrib.layers.xavier_initializer())
 		try:
 			deconv = tf.nn.conv2d_transpose(input_, w, output_shape=output_shape,
 								strides=[1, d_h, d_w, 1])
@@ -109,15 +108,47 @@ def deconv2d(input_, output_shape,
 def lrelu(x, leak=0.2, name="lrelu"):
 	return tf.maximum(x, leak*x)
 
-def linear(input_, output_size, scope=None, stddev=0.02, bias_start=0.0, with_w=False):
+def linear(input_, output_size, scope=None, stddev=0.02, bias_start=0.0,
+           with_w=False):
 	shape = input_.get_shape().as_list()
 
 	with tf.variable_scope(scope or "Linear"):
+		#matrix = tf.get_variable("Matrix", [shape[1], output_size], tf.float32,
+		#						 tf.random_normal_initializer(stddev=stddev))
 		matrix = tf.get_variable("Matrix", [shape[1], output_size], tf.float32,
-								 tf.random_normal_initializer(stddev=stddev))
+								 tf.contrib.layers.xavier_initializer())
 		bias = tf.get_variable("bias", [output_size],
 			initializer=tf.constant_initializer(bias_start))
 		if with_w:
 			return tf.matmul(input_, matrix) + bias, matrix, bias
 		else:
 			return tf.matmul(input_, matrix) + bias
+
+def attention(decoder_output, seq_outputs, output_size, time_steps,
+              name="attention"):
+
+	with tf.variable_scope(name):
+		ui = []
+		w_1 = tf.get_variable("w1", [output_size, output_size],
+							  tf.float32,
+							  tf.contrib.layers.xavier_initializer())
+		w_2 = tf.get_variable("w2", [output_size, output_size],
+							  tf.float32,
+							  tf.contrib.layers.xavier_initializer())
+		v = tf.get_variable("v", [output_size, 1],
+							  tf.float32,
+							  tf.contrib.layers.xavier_initializer())
+		for seq_out in seq_outputs:
+			ui.append(tf.matmul(tf.nn.tanh(tf.matmul(seq_out, w_1) +
+									tf.matmul(decoder_output, w_2)), v))
+
+		return ui
+
+def get_gt(batch_size, classes, real=1, name="gt"):
+
+	with tf.variable_scope(name, reuse=None):
+		r_f = tf.get_variable("rf", [batch_size, 1],
+		                       initializer = tf.constant_initializer(
+			                       real))
+		gt = tf.concat(1, [r_f, classes], name = 'gt_concat_classes')
+		return gt
