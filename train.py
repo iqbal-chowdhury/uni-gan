@@ -30,9 +30,6 @@ def main() :
 	parser.add_argument('--e_layers', type = int, default = 2,
 	                    help = 'RNN Sequence encoder number of layers')
 
-	parser.add_argument('--e_dropout', type = float, default = 0.5,
-	                    help = 'Dropout for BLSTM layers.')
-
 	parser.add_argument('--batch_size', type = int, default = 64,
 	                    help = 'Batch Size')
 
@@ -89,8 +86,7 @@ def main() :
 		'e_size' : args.e_size,
 		'e_layers' : args.e_layers,
 		'e_max_step' : args.e_max_step,
-		'n_classes' : loaded_data['n_classes'],
-		'e_dropout' :  args.e_dropout
+		'n_classes' : loaded_data['n_classes']
 	}
 
 	gan = model.GAN(model_options)
@@ -131,8 +127,7 @@ def main() :
 				input_tensors['t_wrong_image'].name : wrong_images,
 				input_tensors['t_z'].name : z_noise,
 				input_tensors['t_real_classes'].name : real_classes,
-				input_tensors['t_wrong_classes'].name : wrong_classes,
-				input_tensors['e_dropout'].name : args.e_dropout
+				input_tensors['t_wrong_classes'].name : wrong_classes
 			}
 			for c, d in zip(input_tensors['t_real_caption'], caption_vectors):
 				feed[c.name] = d
@@ -151,12 +146,12 @@ def main() :
 			_, g_loss, gen = sess.run(
 				[g_optim, loss['g_loss'], outputs['generator']],
 				feed_dict = feed)
-			'''
+			
 			# GEN UPDATE TWICE, to make sure d_loss does not go to 0
 			_, g_loss, gen = sess.run(
 				[g_optim, loss['g_loss'], outputs['generator']],
 				feed_dict = feed)
-			'''
+			
 			print "LOSSES", d_loss, g_loss, batch_no, i, len(
 				loaded_data['image_list']) / args.batch_size
 			batch_no += 1
