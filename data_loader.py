@@ -140,8 +140,7 @@ def save_caption_vectors_flowers(data_dir, vocab_size, recreate_vocab=True) :
                                                              one_hot_targets)
 
     min_len, max_len, avg_len = 0, 0, 0.0
-    if recreate_vocab:
-        min_len, max_len, avg_len = data_util.create_vocabulary(vocab_path,
+    min_len, max_len, avg_len = data_util.create_vocabulary(vocab_path,
                                                                 all_caps_dir,
                                                                 vocab_size,
                                                                 normalize_digits = False)

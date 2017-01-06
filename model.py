@@ -161,13 +161,21 @@ class GAN :
 
 	def build_generator(self) :
 		img_size = self.options['image_size']
-		t_real_caption = tf.placeholder('float32', [self.options['batch_size'],
-		                                            self.options[
-			                                            'caption_vector_length']],
-		                                name = 'real_caption_input')
+		t_real_caption = [tf.placeholder('float32',
+		                                 [self.options['batch_size'], 1],
+		                                 name='real_caption_input' + str(i)) for i in
+		                  range(self.options['e_max_step'])]
+		
 		t_z = tf.placeholder('float32', [self.options['batch_size'],
 		                                 self.options['z_dim']])
-		fake_image = self.sampler(t_z, t_real_caption)
+		
+		
+		caption_embeddings, seq_outputs, output_size, time_steps = \
+			self.sampler_seq_encoder(t_real_caption,
+			                 self.options['caption_vector_length'],
+			                 self.options['e_size'],
+			                 self.options['e_layers'],)
+		fake_image = self.sampler(t_z, caption_embeddings)
 
 		input_tensors = {
 			't_real_caption' : t_real_caption,
@@ -179,7 +187,42 @@ class GAN :
 		}
 
 		return input_tensors, outputs
-
+	
+	def sampler_seq_encoder(self, t_real_caption, embedding_size, state_size, e_layers):
+		tf.get_variable_scope().reuse_variables()
+		
+		lstm_fw_cell = tf.nn.rnn_cell.BasicLSTMCell(state_size,
+		                                            forget_bias=1.0)
+		# lstm_fw_cell = tf.nn.rnn_cell.DropoutWrapper(lstm_fw_cell,
+		#                              output_keep_prob = e_dropout)
+		lstm_fw_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_fw_cell] * e_layers)
+		# Backward direction cell
+		lstm_bw_cell = tf.nn.rnn_cell.BasicLSTMCell(state_size,
+		                                            forget_bias=1.0)
+		# lstm_bw_cell = tf.nn.rnn_cell.DropoutWrapper(lstm_bw_cell,
+		#                              output_keep_prob = e_dropout)
+		lstm_bw_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_bw_cell] * e_layers)
+		# Get lstm cell output
+		outputs, _, _ = tf.nn.bidirectional_rnn(lstm_fw_cell, lstm_bw_cell,
+		                                        t_real_caption,
+		                                        dtype=tf.float32,
+		                                        scope='e_brnn')
+		# print(len(outputs))
+		# print(outputs[0].get_shape())
+		output_size = outputs[0].get_shape()[1]
+		time_steps = len(outputs)
+		# try weight sharing later too
+		concat_outs = tf.concat(1, outputs)
+		# print(concat_outs)
+		# add a
+		# constant
+		# initializer later
+		caption_embeddings_logits = ops.linear(concat_outs, embedding_size,
+		                                       'e_embeddings')
+		# print(caption_embeddings_logits)
+		preds = tf.sigmoid(caption_embeddings_logits)
+		
+		return preds, outputs, output_size, time_steps
 	# Sample Images for a text embedding
 	def sampler(self, t_z, t_text_embedding) :
 		tf.get_variable_scope().reuse_variables()

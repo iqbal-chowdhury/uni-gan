@@ -1,0 +1,5 @@
+1.  31002
+        Model with attention in the discriminator and a sigmoid cross entropy over all
+        python train.py --e_layers=3 --batch_size=100 --caption_vector_length=100 --learning_rate=0.001 --epochs=1000 --save_every=50 --e_size=128
+
+2. 31002

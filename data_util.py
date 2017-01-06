@@ -25,6 +25,7 @@ import tarfile
 import sys
 from nltk.tokenize import word_tokenize
 from six.moves import urllib
+import numpy as np
 
 from tensorflow.python.platform import gfile
 import tensorflow as tf
@@ -286,6 +287,28 @@ def read_data(source_path, max_size=None) :
 			source = source_file.readline()
 	return data_set
 
+def encode_text_to_ids(text, vocab_dir, vocab_size, pad_len):
+	n_seq = len(text)
+	vocab_path = os.path.join(vocab_dir, "vocab%d.txt" % vocab_size)
+	vocab, _ = initialize_vocabulary(vocab_path)
+	encoded_text_ids = data_to_token_ids(text, vocab, normalize_digits=False)
+	padded_text_ids = pad_data(encoded_text_ids, pad_len)
+	
+	padded_text_ids = padded_text_ids
+	#reshaped_data = tf_seq_reshape(n_seq, padded_text_ids, pad_len)
+	return padded_text_ids
+
+
+def tf_seq_reshape(batch_size, captions, caps_max_len):
+	# Now we create batch-major vectors from the data selected above.
+	batch_encoder_inputs = []
+
+	# Batch encoder inputs are just re-indexed encoder_inputs.
+	for length_idx in xrange(caps_max_len) :
+		batch_encoder_inputs.append(
+			np.array([[captions[batch_idx][length_idx]]
+			          for batch_idx in xrange(batch_size)], dtype = np.float32))
+	return batch_encoder_inputs
 
 if __name__ == '__main__' :
 	print("Preparing WMT data in %s" % FLAGS.data_dir)
