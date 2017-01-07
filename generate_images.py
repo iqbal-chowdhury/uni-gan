@@ -109,7 +109,7 @@ def main():
 		[ gen_image ] = sess.run( [ outputs['generator'] ], 
 			feed_dict = feed )
 		
-		caption_images = [gen_image[i,:,:,:] for i in range(0, args.n_images)]
+		caption_images = [gen_image[i,:,:,:] for i in range(0, 5)]
 		caption_image_dic[ cn ] = caption_images
 		print "Generated", cn
 

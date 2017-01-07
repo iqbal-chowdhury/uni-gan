@@ -98,25 +98,25 @@ class GAN :
 			tf.nn.sigmoid_cross_entropy_with_logits(disc_fake_image_logits,
 			                                        tf.ones_like(disc_fake_image)))
 		g_loss_2 = tf.reduce_mean(
-			tf.nn.sigmoid_cross_entropy_with_logits(disc_fake_image_aux_logits,
+			tf.nn.softmax_cross_entropy_with_logits(disc_fake_image_aux_logits,
 			                                        t_real_classes))
 
 		d_loss1 = tf.reduce_mean(
 			tf.nn.sigmoid_cross_entropy_with_logits(disc_real_image_logits,
 			                                        tf.ones_like(disc_real_image)))
 		d_loss1_1 = tf.reduce_mean(
-			tf.nn.sigmoid_cross_entropy_with_logits(disc_real_image_aux_logits,
+			tf.nn.softmax_cross_entropy_with_logits(disc_real_image_aux_logits,
 			                                        t_real_classes))
 		d_loss2 = tf.reduce_mean(
 			tf.nn.sigmoid_cross_entropy_with_logits(disc_wrong_image_logits,
 			                                        tf.zeros_like(disc_wrong_image)))
 		d_loss2_1 = tf.reduce_mean(
-			tf.nn.sigmoid_cross_entropy_with_logits(disc_wrong_image_aux_logits,
+			tf.nn.softmax_cross_entropy_with_logits(disc_wrong_image_aux_logits,
 			                                        t_wrong_classes))
 		d_loss3 = tf.reduce_mean(
 			tf.nn.sigmoid_cross_entropy_with_logits(disc_fake_image_logits, tf.zeros_like(disc_fake_image)))
 
-		d_loss = d_loss1 + d_loss1_1 + d_loss2 + d_loss2_1  + d_loss3 + g_loss_2
+		d_loss = d_loss1 + d_loss1_1 + d_loss2 + d_loss3 + g_loss_2
 		
 		g_loss = g_loss_1 + g_loss_2
 
@@ -275,8 +275,25 @@ class GAN :
 		                'g_h0_lin')
 		h0 = tf.reshape(z_, [-1, s16, s16, self.options['gf_dim'] * 8])
 		h0 = tf.nn.relu(slim.batch_norm(h0, scope="g_bn0"))
+		
+		print h0
+		h0_flat = tf.reshape(h0, [self.options['batch_size'], -1])
+		print h0_flat
+		h0_squeezed = ops.linear(h0_flat, output_size, 'g_h3_lin')
+		# print(h3_squeezed)
+		print h0_squeezed
+		attn_sum, attn_span = self.attention(h0_squeezed, seq_outputs,
+		                                                output_size, time_steps)
+		print attn_sum
+		attn_sum = tf.expand_dims(attn_sum, 1)
+		attn_sum = tf.expand_dims(attn_sum, 2)
+		print attn_sum
+		tiled_attn = tf.tile(attn_sum, [1, 4, 4, 1], name='tiled_attention')
+		print tiled_attn
+		h0_concat = tf.concat(3, [h0, tiled_attn], name = 'h3_concat')
+		print h0_concat		
 
-		h1 = ops.deconv2d(h0, [self.options['batch_size'], s8, s8,
+		h1 = ops.deconv2d(h0_concat, [self.options['batch_size'], s8, s8,
 		                       self.options['gf_dim'] * 4], name = 'g_h1')
 		h1 = tf.nn.relu(slim.batch_norm(h1, scope="g_bn1"))
 		
@@ -289,22 +306,7 @@ class GAN :
 		h3 = ops.deconv2d(h2, [self.options['batch_size'], s2, s2,
 		                       self.options['gf_dim'] * 1], name = 'g_h3')
 		h3 = tf.nn.relu(slim.batch_norm(h3, scope="g_bn3"))
-		print h3
-		h3_flat = tf.reshape(h3, [self.options['batch_size'], -1])
-		print h3_flat
-		h3_squeezed = ops.linear(h3_flat, output_size, 'g_h3_lin')
-		# print(h3_squeezed)
-		print h3_squeezed
-		attn_sum, attn_span = self.attention(h3_squeezed, seq_outputs,
-		                                                output_size, time_steps)
-		print attn_sum
-		attn_sum = tf.expand_dims(attn_sum, 1)
-		attn_sum = tf.expand_dims(attn_sum, 2)
-		print attn_sum
-		tiled_attn = tf.tile(attn_sum, [1, 32, 32, 1], name='tiled_attention')
-		print tiled_attn
-		h3_concat = tf.concat(3, [h3, tiled_attn], name = 'h3_concat')
-		print h3_concat
+		
 		#h3_attn = tf.concat(1, [h3_squeezed, attn_sum], name='h3_attn')
 
 		h4 = ops.deconv2d(h3_concat, [self.options['batch_size'], s, s, 3],
