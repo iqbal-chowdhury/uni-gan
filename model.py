@@ -1,6 +1,7 @@
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 #import GRUCell, DropoutWrapper,MultiRNNCell
+import numpy as np
 from Utils import ops
 
 
@@ -19,12 +20,12 @@ class GAN :
 
 	def __init__(self, options) :
 		self.options = options
-
+		'''
 		self.g_bn0 = ops.batch_norm(name = 'g_bn0')
 		self.g_bn1 = ops.batch_norm(name = 'g_bn1')
 		self.g_bn2 = ops.batch_norm(name = 'g_bn2')
 		self.g_bn3 = ops.batch_norm(name = 'g_bn3')
-		'''
+		
 		self.d_bn1 = ops.batch_norm(name = 'd_bn1')
 		self.d_bn2 = ops.batch_norm(name = 'd_bn2')
 		self.d_bn3 = ops.batch_norm(name = 'd_bn3')
@@ -43,27 +44,26 @@ class GAN :
 		# t_real_caption = tf.placeholder('float32', [self.options[
 		# 'batch_size'], self.options['caption_vector_length']],
 		# name = 'real_caption_input')
-		t_real_caption = tf.placeholder('float32',
-		                                [self.options['e_max_step'],
-		                                 self.options['batch_size'], 1],
-		                                name = 'real_caption_input')
-
-		t_real_caption = tf.reshape(t_real_caption, [-1, 1])
-		t_real_caption = tf.split(0, self.options['e_max_step'], t_real_caption)
+		t_real_caption = [tf.placeholder('float32',
+		                                [self.options['batch_size'], 1],
+		                                name = 'real_caption_input' + str(i)) for i in range(self.options['e_max_step'])]
+		
+		#t_real_caption = tf.reshape(t_real_caption, [-1, 1])
+		#t_real_caption = tf.split(0, self.options['e_max_step'], t_real_caption)
 
 		t_z = tf.placeholder('float32',
 		                     [self.options['batch_size'],
-		                      self.options['z_dim']])
+		                      self.options['z_dim']], name='input_noise')
 
 		t_real_classes = tf.placeholder('float32',
 										[self.options['batch_size'],
-										self.options['n_classes']])
+										self.options['n_classes']], name='real_classes')
 
 		t_wrong_classes = tf.placeholder('float32',
 										[self.options['batch_size'],
-										 self.options['n_classes']])
+										 self.options['n_classes']], name='wrong_classes')
 
-		e_dropout = tf.placeholder(tf.float32)
+		e_dropout = tf.placeholder(tf.float32, name='dropout')
 
 		caption_embeddings, seq_outputs, output_size, time_steps = \
 			self.seq_encoder(t_real_caption,
@@ -96,28 +96,28 @@ class GAN :
 		gt_dloss3 = ops.get_gt(self.options['batch_size'], t_real_classes,
 		                                                        0, 'gt_dloss3')
 
-		print(gt_gloss)
 		g_loss = tf.reduce_mean(
-			tf.nn.sigmoid_cross_entropy_with_logits(disc_fake_image_logits,
+			tf.nn.softmax_cross_entropy_with_logits(disc_fake_image_logits,
 			                                        gt_gloss))
 
 		d_loss1 = tf.reduce_mean(
-			tf.nn.sigmoid_cross_entropy_with_logits(disc_real_image_logits,
+			tf.nn.softmax_cross_entropy_with_logits(disc_real_image_logits,
 			                                        gt_dloss1))
 		d_loss2 = tf.reduce_mean(
-			tf.nn.sigmoid_cross_entropy_with_logits(disc_wrong_image_logits,
+			tf.nn.softmax_cross_entropy_with_logits(disc_wrong_image_logits,
 			                                        gt_dloss2))
 		d_loss3 = tf.reduce_mean(
-			tf.nn.sigmoid_cross_entropy_with_logits(disc_fake_image_logits,
+			tf.nn.softmax_cross_entropy_with_logits(disc_fake_image_logits,
 			                                        gt_dloss3))
 
 		d_loss = d_loss1 + d_loss2 + d_loss3
 
 		t_vars = tf.trainable_variables()
-		print(t_vars)
+		'''
 		for v in t_vars:
 			print(v.name)
 			print(v)
+		'''
 		d_vars = [var for var in t_vars if 'd_' in var.name or
 		                                    'a_' in var.name or
 								            'e_' in var.name]
@@ -193,19 +193,19 @@ class GAN :
 		z_ = ops.linear(z_concat, self.options['gf_dim'] * 8 * s16 * s16,
 		                'g_h0_lin')
 		h0 = tf.reshape(z_, [-1, s16, s16, self.options['gf_dim'] * 8])
-		h0 = tf.nn.relu(self.g_bn0(h0, train = False))
+		h0 = tf.nn.relu(slim.batch_norm(h0, trainable = False, reuse=True, scope="g_bn0"))
 
 		h1 = ops.deconv2d(h0, [self.options['batch_size'], s8, s8,
 		                       self.options['gf_dim'] * 4], name = 'g_h1')
-		h1 = tf.nn.relu(self.g_bn1(h1, train = False))
+		h1 = tf.nn.relu(slim.batch_norm(h1, trainable = False, reuse=True, scope="g_bn1"))
 
 		h2 = ops.deconv2d(h1, [self.options['batch_size'], s4, s4,
 		                       self.options['gf_dim'] * 2], name = 'g_h2')
-		h2 = tf.nn.relu(self.g_bn2(h2, train = False))
+		h2 = tf.nn.relu(slim.batch_norm(h2, trainable = False, reuse=True, scope="g_bn2"))
 
 		h3 = ops.deconv2d(h2, [self.options['batch_size'], s2, s2,
 		                       self.options['gf_dim'] * 1], name = 'g_h3')
-		h3 = tf.nn.relu(self.g_bn3(h3, train = False))
+		h3 = tf.nn.relu(slim.batch_norm(h3, trainable = False, reuse=True, scope="g_bn3"))
 
 		h4 = ops.deconv2d(h3, [self.options['batch_size'], s, s, 3],
 		                  name = 'g_h4')
@@ -224,19 +224,19 @@ class GAN :
 		z_ = ops.linear(z_concat, self.options['gf_dim'] * 8 * s16 * s16,
 		                'g_h0_lin')
 		h0 = tf.reshape(z_, [-1, s16, s16, self.options['gf_dim'] * 8])
-		h0 = tf.nn.relu(self.g_bn0(h0))
+		h0 = tf.nn.relu(slim.batch_norm(h0, scope="g_bn0"))
 
 		h1 = ops.deconv2d(h0, [self.options['batch_size'], s8, s8,
 		                       self.options['gf_dim'] * 4], name = 'g_h1')
-		h1 = tf.nn.relu(self.g_bn1(h1))
+		h1 = tf.nn.relu(slim.batch_norm(h1, scope="g_bn1"))
 
 		h2 = ops.deconv2d(h1, [self.options['batch_size'], s4, s4,
 		                       self.options['gf_dim'] * 2], name = 'g_h2')
-		h2 = tf.nn.relu(self.g_bn2(h2))
+		h2 = tf.nn.relu(slim.batch_norm(h2, scope="g_bn2"))
 
 		h3 = ops.deconv2d(h2, [self.options['batch_size'], s2, s2,
 		                       self.options['gf_dim'] * 1], name = 'g_h3')
-		h3 = tf.nn.relu(self.g_bn3(h3))
+		h3 = tf.nn.relu(slim.batch_norm(h3, scope="g_bn3"))
 
 		h4 = ops.deconv2d(h3, [self.options['batch_size'], s, s, 3],
 		                  name = 'g_h4')
@@ -250,17 +250,16 @@ class GAN :
 
 		lstm_fw_cell = tf.nn.rnn_cell.BasicLSTMCell(state_size,
 		                                            forget_bias = 1.0)
-		lstm_fw_cell = tf.nn.rnn_cell.DropoutWrapper(lstm_fw_cell,
-		                              output_keep_prob = e_dropout)
+		#lstm_fw_cell = tf.nn.rnn_cell.DropoutWrapper(lstm_fw_cell,
+		#                              output_keep_prob = e_dropout)
 		lstm_fw_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_fw_cell] * e_layers)
 		# Backward direction cell
 		lstm_bw_cell = tf.nn.rnn_cell.BasicLSTMCell(state_size,
 		                                            forget_bias = 1.0)
-		lstm_bw_cell = tf.nn.rnn_cell.DropoutWrapper(lstm_bw_cell,
-		                              output_keep_prob = e_dropout)
+		#lstm_bw_cell = tf.nn.rnn_cell.DropoutWrapper(lstm_bw_cell,
+		#                              output_keep_prob = e_dropout)
 		lstm_bw_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_bw_cell] * e_layers)
 		# Get lstm cell output
-		#print(t_real_caption)
 		outputs, _, _ = tf.nn.bidirectional_rnn(lstm_fw_cell, lstm_bw_cell,
 		                                            t_real_caption,
 		                                            dtype = tf.float32,
@@ -275,10 +274,14 @@ class GAN :
 		# add a
 		# constant
 		# initializer later
-		caption_embeddings_logits = ops.linear(concat_outs, embedding_size,
+		e_fcl0 = ops.lrelu(slim.batch_norm(ops.linear(concat_outs, 2048,'e_fcl_0'),
+								    scope='e_bn0'))
+		e_fcl1 = ops.lrelu(slim.batch_norm(ops.linear(e_fcl0, 1024, 'e_fcl_1'),
+									scope='e_bn1'))
+		caption_embeddings_logits = ops.linear(e_fcl1, embedding_size,
 		                                       'e_embeddings')
 		#print(caption_embeddings_logits)
-		preds = tf.sigmoid(caption_embeddings_logits)
+		preds = tf.tanh(caption_embeddings_logits)
 
 		return preds, outputs, output_size, time_steps
 

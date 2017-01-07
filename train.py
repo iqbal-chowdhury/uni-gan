@@ -108,7 +108,7 @@ def main() :
 
 	saver = tf.train.Saver()
 	if args.resume_model :
-		saver.restore(sess, args.resume_model)
+		saver.restore(sess, tf.train.latest_checkpoint(args.resume_model))
 
 
 
@@ -126,17 +126,21 @@ def main() :
 			# DISCR UPDATE
 			check_ts = [checks['d_loss1'], checks['d_loss2'],
 			            checks['d_loss3'], checks['attn_span']]
-			_, d_loss, gen, d1, d2, d3 = sess.run(
+			feed = {
+				input_tensors['t_real_image'].name : real_images,
+				input_tensors['t_wrong_image'].name : wrong_images,
+				input_tensors['t_z'].name : z_noise,
+				input_tensors['t_real_classes'].name : real_classes,
+				input_tensors['t_wrong_classes'].name : wrong_classes,
+				input_tensors['e_dropout'].name : args.e_dropout
+			}
+			for c, d in zip(input_tensors['t_real_caption'], caption_vectors):
+				feed[c.name] = d
+			
+			# DISC UPDATE
+			_, d_loss, gen, d1, d2, d3, attn = sess.run(
 				[d_optim, loss['d_loss'], outputs['generator']] + check_ts,
-				feed_dict = {
-					input_tensors['t_real_image'] : real_images,
-					input_tensors['t_wrong_image'] : wrong_images,
-					input_tensors['t_real_caption'] : caption_vectors,
-					input_tensors['t_z'] : z_noise,
-					input_tensors['t_real_classes'] : wrong_classes,
-					input_tensors['t_wrong_classes'] : wrong_classes,
-					input_tensors['e_dropout'] : args.e_dropout,
-				})
+				feed_dict = feed)
 
 			print "d1", d1
 			print "d2", d2
@@ -146,22 +150,12 @@ def main() :
 			# GEN UPDATE
 			_, g_loss, gen = sess.run(
 				[g_optim, loss['g_loss'], outputs['generator']],
-				feed_dict = {
-					input_tensors['t_real_image'] : real_images,
-					input_tensors['t_wrong_image'] : wrong_images,
-					input_tensors['t_real_caption'] : caption_vectors,
-					input_tensors['t_z'] : z_noise,
-				})
+				feed_dict = feed)
 
 			# GEN UPDATE TWICE, to make sure d_loss does not go to 0
 			_, g_loss, gen = sess.run(
 				[g_optim, loss['g_loss'], outputs['generator']],
-				feed_dict = {
-					input_tensors['t_real_image'] : real_images,
-					input_tensors['t_wrong_image'] : wrong_images,
-					input_tensors['t_real_caption'] : caption_vectors,
-					input_tensors['t_z'] : z_noise,
-				})
+				feed_dict = feed)
 
 			print "LOSSES", d_loss, g_loss, batch_no, i, len(
 				loaded_data['image_list']) / args.batch_size
@@ -308,7 +302,8 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim,
 			wrong_image_array = image_processing.load_image_array(wrong_image_file,
 			                                                      image_size)
 			wrong_images[cnt, :, :, :] = wrong_image_array
-			wrong_classes = loaded_data['classes'][loaded_data['image_list'][
+			
+			wrong_classes[cnt, :] = loaded_data['classes'][loaded_data['image_list'][
 									wrong_image_id]][0 :loaded_data['n_classes']]
 
 			random_caption = random.randint(0, 4)
@@ -323,6 +318,7 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim,
 			cnt += 1
 		captions = tf_seq_reshape(batch_size, captions,
 		                          loaded_data['max_caps_len'])
+		
 		z_noise = np.random.uniform(-1, 1, [batch_size, z_dim])
 		return real_images, wrong_images, captions, z_noise, image_files, \
 		       real_classes, wrong_classes
@@ -335,7 +331,8 @@ def tf_seq_reshape(batch_size, captions, caps_max_len):
 	for length_idx in xrange(caps_max_len) :
 		batch_encoder_inputs.append(
 			np.array([[captions[batch_idx][length_idx]]
-			          for batch_idx in xrange(batch_size)], dtype = np.int32))
+			          for batch_idx in xrange(batch_size)], dtype = np.float32))
+	return batch_encoder_inputs
 
 if __name__ == '__main__' :
 	main()

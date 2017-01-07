@@ -35,8 +35,8 @@ def save_caption_vectors_ms_coco(data_dir, split, batch_size) :
             captions.append(ic_data['annotations'][idx]['caption'])
             image_ids.append(ic_data['annotations'][idx]['image_id'])
 
-        print captions
-        print image_ids
+        #print captions
+        #print image_ids
         # Thought Vectors
         tv_batch = skipthoughts.encode(model, captions)
         h5f_tv_batch = h5py.File(join(data_dir, 'tvs/' + split + '_tvs_' + str(batch_no)),
@@ -104,7 +104,7 @@ def save_caption_vectors_flowers(data_dir, vocab_size, recreate_vocab=True) :
     caption_dir = join(data_dir, 'flowers/text_c10')
     image_files = [f for f in os.listdir(img_dir) if 'jpg' in f]
     print image_files[300 :400]
-    print len(image_files)
+    #print len(image_files)
     image_captions = {img_file : [] for img_file in image_files}
     image_classes = {img_file : None for img_file in image_files}
 
@@ -146,7 +146,7 @@ def save_caption_vectors_flowers(data_dir, vocab_size, recreate_vocab=True) :
                                                                 vocab_size,
                                                                 normalize_digits = False)
     pad_len = max_len + 2
-    print len(image_captions)
+    #print len(image_captions)
 
     #model = skipthoughts.load_model()
     vocab, _ = data_util.initialize_vocabulary(vocab_path)
