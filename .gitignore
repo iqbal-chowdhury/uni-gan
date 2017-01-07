@@ -20,3 +20,4 @@ Utils/word_embeddings_old.py
 gen_backup.py
 data_loader_test.py
 downloadModels.sh
+*~

@@ -288,9 +288,9 @@ class GAN :
 		attn_sum = tf.expand_dims(attn_sum, 1)
 		attn_sum = tf.expand_dims(attn_sum, 2)
 		print attn_sum
-		tiled_attn = tf.tile(attn_sum, [1, 4, 4, 1], name='tiled_attention')
+		tiled_attn = tf.tile(attn_sum, [1, 4, 4, 1], name='h0_tiled_attention')
 		print tiled_attn
-		h0_concat = tf.concat(3, [h0, tiled_attn], name = 'h3_concat')
+		h0_concat = tf.concat(3, [h0, tiled_attn], name = 'h0_concat')
 		print h0_concat		
 
 		h1 = ops.deconv2d(h0_concat, [self.options['batch_size'], s8, s8,
@@ -309,7 +309,7 @@ class GAN :
 		
 		#h3_attn = tf.concat(1, [h3_squeezed, attn_sum], name='h3_attn')
 
-		h4 = ops.deconv2d(h3_concat, [self.options['batch_size'], s, s, 3],
+		h4 = ops.deconv2d(h3, [self.options['batch_size'], s, s, 3],
 		                  name = 'g_h4')
 		print h4
 		return (tf.tanh(h4) / 2. + 0.5), attn_span
