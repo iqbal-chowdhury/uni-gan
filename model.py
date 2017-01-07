@@ -116,7 +116,7 @@ class GAN :
 		d_loss3 = tf.reduce_mean(
 			tf.nn.sigmoid_cross_entropy_with_logits(disc_fake_image_logits, tf.zeros_like(disc_fake_image)))
 
-		d_loss = d_loss1 + d_loss1_1 + d_loss2 + d_loss2_1  + d_loss3 + g_loss_2
+		d_loss = d_loss1 + d_loss1_1 + d_loss2  + d_loss3 + g_loss_2
 		
 		g_loss = g_loss_1 + g_loss_2
 
@@ -194,6 +194,77 @@ class GAN :
 		}
 
 		return input_tensors, outputs
+	
+	def build_encoder(self) :
+		t_real_caption = [tf.placeholder('float32',
+		                                 [self.options['batch_size'], 1],
+		                                 name='real_caption_input' + str(i)) for i in
+		                  range(self.options['e_max_step'])]
+		t_image_feat = tf.placeholder('float32',
+		                                 [self.options['batch_size'], 4096],
+		                                 name='t_image_feat')
+		
+		t_real_classes = tf.placeholder('float32',
+		                                [self.options['batch_size'],
+		                                 self.options['n_classes']], name='real_classes')
+		
+		keep_prob = tf.placeholder(tf.float32, name='keep_prob')
+		
+		train = tf.placeholder(tf.int32, name='train')
+		if train is 1:
+			trainable = True
+		else:
+			trainable = False
+		
+		caption_embeddings, seq_outputs, output_size, time_steps = \
+			self.seq_encoder(t_real_caption,
+			                         self.options['caption_vector_length'],
+			                         self.options['e_size'],
+			                         self.options['e_layers'])
+		txt_img_feat = tf.concat(1, [t_image_feat, caption_embeddings], name='e_img_concat')
+		l_1= slim.batch_norm(ops.linear(txt_img_feat, 2048, 'e_fcl_1'), trainable=trainable)
+		l_2 = tf.nn.dropout(ops.linear(l_1, 2048, 'e_fcl_2'), keep_prob=keep_prob)
+		l_3 = slim.batch_norm(ops.linear(l_2, 1024, 'e_fcl_3'), trainable=trainable)
+		l_4 = tf.nn.dropout(ops.linear(l_3, 1024, 'e_fcl_4'), keep_prob=keep_prob)
+		
+		l_5 = ops.linear(l_4, self.options['n_classes'], 'e_sl')
+		
+		cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(l_5, t_real_classes))
+		
+		# Evaluate model
+		correct_pred = tf.equal(tf.argmax(l_5, 1), tf.argmax(t_real_classes, 1))
+		accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+		
+		t_vars = tf.trainable_variables()
+		
+		e_vars = [var for var in t_vars if 'e_' in var.name]
+		
+		input_tensors = {
+			't_real_caption' : t_real_caption,
+			't_image_feat' : t_image_feat,
+			't_real_classes' : t_real_classes,
+			'keep_prob' : keep_prob,
+			'train' : train
+		}
+		variables = {
+			'e_vars' : e_vars
+		}
+		
+		loss = {
+			'cost' : cost
+		}
+		outputs = {
+			'accuracy' : accuracy
+		}
+		
+		checks = {
+			'cost' : cost,
+			'accuracy' : accuracy,
+			'caption_embeddings': caption_embeddings,
+			'seq_outputs' : seq_outputs
+		}
+		
+		return input_tensors, variables, loss, outputs, checks
 	
 	def sampler_seq_encoder(self, t_real_caption, embedding_size, state_size, e_layers):
 		tf.get_variable_scope().reuse_variables()
