@@ -70,7 +70,7 @@ class GAN :
 			                 self.options['e_size'],
 			                 self.options['e_layers'])
 
-		fake_image, attn_spn = self.generator(t_z, caption_embeddings,
+		fake_image = self.generator(t_z, caption_embeddings,
 			seq_outputs, output_size, time_steps)
 
 		disc_real_image, disc_real_image_logits, disc_real_image_aux, \
@@ -161,7 +161,7 @@ class GAN :
 			'disc_real_image_logits'    : disc_real_image_logits,
 			'disc_wrong_image_logits'   : disc_wrong_image,
 			'disc_fake_image_logits'    : disc_fake_image_logits,
-			'attn_span'                 : attn_spn
+			'attn_span'                 : None
 		}
 
 		return input_tensors, variables, loss, outputs, checks
@@ -276,24 +276,7 @@ class GAN :
 		h0 = tf.reshape(z_, [-1, s16, s16, self.options['gf_dim'] * 8])
 		h0 = tf.nn.relu(slim.batch_norm(h0, scope="g_bn0"))
 		
-		print h0
-		h0_flat = tf.reshape(h0, [self.options['batch_size'], -1])
-		print h0_flat
-		h0_squeezed = ops.linear(h0_flat, output_size, 'g_h3_lin')
-		# print(h3_squeezed)
-		print h0_squeezed
-		attn_sum, attn_span = self.attention(h0_squeezed, seq_outputs,
-		                                                output_size, time_steps)
-		print attn_sum
-		attn_sum = tf.expand_dims(attn_sum, 1)
-		attn_sum = tf.expand_dims(attn_sum, 2)
-		print attn_sum
-		tiled_attn = tf.tile(attn_sum, [1, 4, 4, 1], name='h0_tiled_attention')
-		print tiled_attn
-		h0_concat = tf.concat(3, [h0, tiled_attn], name = 'h0_concat')
-		print h0_concat		
-
-		h1 = ops.deconv2d(h0_concat, [self.options['batch_size'], s8, s8,
+		h1 = ops.deconv2d(h0, [self.options['batch_size'], s8, s8,
 		                       self.options['gf_dim'] * 4], name = 'g_h1')
 		h1 = tf.nn.relu(slim.batch_norm(h1, scope="g_bn1"))
 		
@@ -312,7 +295,7 @@ class GAN :
 		h4 = ops.deconv2d(h3, [self.options['batch_size'], s, s, 3],
 		                  name = 'g_h4')
 		print h4
-		return (tf.tanh(h4) / 2. + 0.5), attn_span
+		return (tf.tanh(h4) / 2. + 0.5)
 
 	# GENERATOR IMPLEMENTATION based on :
 	# https://github.com/carpedm20/DCGAN-tensorflow/blob/master/model.py

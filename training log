@@ -8,3 +8,20 @@
 	Attn added to the last but one conv layer
 	Results very bad
 	python train.py --e_layers=4 --batch_size=64 --caption_vector_length=128 --learning_rate=0.001 --epochs=600 --save_every=30 --e_size=512 &
+
+
+3. 31002 (model 4)
+	Model with attention in the generator
+	Attn added to the 1st conv layer
+	Modes collapsing
+	python train.py --e_layers=4 --batch_size=64 --caption_vector_length=128 --learning_rate=0.001 --epochs=600 --save_every=30 --e_size=512 &
+
+3. 30901 (model 5)
+	Model without attention in the generator
+	python train.py --e_layers=4 --batch_size=64 --caption_vector_length=128 --learning_rate=0.001 --epochs=600 --save_every=30 --e_size=512 &
+
+4. 31003 (model 6)
+	Without attention
+	10 Classes
+	Improved methods
+	python train.py --e_layers=4 --batch_size=64 --caption_vector_length=128 --learning_rate=0.001 --epochs=600 --save_every=30 --e_size=512 &

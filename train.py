@@ -121,7 +121,7 @@ def main() :
 
 			# DISCR UPDATE
 			check_ts = [checks['d_loss1'], checks['d_loss2'],
-			            checks['d_loss3'], checks['attn_span']]
+			            checks['d_loss3']]
 			feed = {
 				input_tensors['t_real_image'].name : real_images,
 				input_tensors['t_wrong_image'].name : wrong_images,
@@ -133,7 +133,7 @@ def main() :
 				feed[c.name] = d
 			
 			# DISC UPDATE
-			_, d_loss, gen, d1, d2, d3, attn = sess.run(
+			_, d_loss, gen, d1, d2, d3 = sess.run(
 				[d_optim, loss['d_loss'], outputs['generator']] + check_ts,
 				feed_dict = feed)
 
@@ -192,7 +192,8 @@ def load_training_data(data_dir, data_set) :
 		image_list = [key for key in flower_captions]
 		image_list.sort()
 
-		img_75 = int(len(image_list) * 0.75)
+		#img_75 = int(len(image_list) * 0.75)
+		img_75 = int(len(image_list) * 1.0)
 		training_image_list = image_list[0 :img_75]
 		random.shuffle(training_image_list)
 

@@ -1,5 +1,6 @@
 import json
 import os
+from os import listdir
 from os.path import join, isfile
 import re
 import numpy as np
@@ -93,21 +94,23 @@ def one_hot_encode_str_lbl(lbl, target, one_hot_targets):
         idx = target.index(lbl)
         return one_hot_targets[idx]
 
-def save_caption_vectors_flowers(data_dir, vocab_size, recreate_vocab=True) :
+def save_caption_vectors_flowers(data_dir, vocab_size, recreate_vocab=True,
+                                 part='text_c10', dt_range=(1, 103)) :
     import time
 
     img_dir = join(data_dir, 'flowers/jpg')
     #dataset_root_dir = join(data_dir, 'flowers')
     all_caps_dir = join(data_dir, 'flowers/all_captions.txt')
     vocab_path = os.path.join(data_dir, "flowers/vocab%d.txt" % vocab_size)
-    target_file_path = os.path.join(data_dir, "flowers/allclasses.txt")
-    caption_dir = join(data_dir, 'flowers/text_c10')
+    target_file_path = os.path.join(data_dir, "flowers/allclasses_"+ part +".txt")
+    caption_dir = join(data_dir, 'flowers/' + part)
     image_files = [f for f in os.listdir(img_dir) if 'jpg' in f]
     print image_files[300 :400]
     #print len(image_files)
-    image_captions = {img_file : [] for img_file in image_files}
-    image_classes = {img_file : None for img_file in image_files}
-
+    #image_captions = {img_file : [] for img_file in image_files}
+    #image_classes = {img_file : None for img_file in image_files}
+    image_captions = {}
+    image_classes = {}
     class_dirs = []
     class_names = []
 
@@ -116,16 +119,24 @@ def save_caption_vectors_flowers(data_dir, vocab_size, recreate_vocab=True) :
 
     target, one_hot_targets, n_target = get_one_hot_targets(target_file_path)
 
-    for i in range(1, 103) :
+    for i in range(dt_range[0], dt_range[1]) :
         class_dir_name = 'class_%.5d' % (i)
+        class_dir = join(caption_dir, class_dir_name)
         class_names.append(class_dir_name)
-        class_dirs.append(join(caption_dir, class_dir_name))
+        class_dirs.append(class_dir)
+        onlyimgfiles = [f[0 :11] + ".jpg" for f in listdir(class_dir)
+                                    if 'txt' in f]
+        for img_file in onlyimgfiles:
+            image_classes[img_file] = None
+
+        for img_file in onlyimgfiles:
+            image_captions[img_file] = []
 
     for class_dir, class_name in zip(class_dirs, class_names) :
         caption_files = [f for f in os.listdir(class_dir) if 'txt' in f]
         for i, cap_file in enumerate(caption_files) :
             if i%50 == 0:
-                print(str(i) + 'captions extracted from' + str(class_dir))
+                print(str(i) + ' captions extracted from' + str(class_dir))
             with open(join(class_dir, cap_file)) as f :
                 str_captions = f.read()
                 captions = str_captions.split('\n')
@@ -186,7 +197,8 @@ def main() :
 
     if args.data_set == 'flowers' :
         save_caption_vectors_flowers(args.data_dir, args.vocab_size,
-                                     recreate_vocab = args.recreate_vocab)
+                                     recreate_vocab = args.recreate_vocab,
+                                     part='set_1', dt_range=(1, 11))
     else :
         save_caption_vectors_ms_coco(args.data_dir, args.split, args.batch_size)
 
