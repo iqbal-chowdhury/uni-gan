@@ -17,6 +17,7 @@
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+from keras.preprocessing import text
 
 import gzip
 import os
@@ -78,9 +79,15 @@ def gunzip_file(gz_path, new_path) :
 
 def basic_tokenizer(sentence) :
 	"""Very basic tokenizer: split the sentence into a list of tokens."""
+	'''
 	words = []
 	for space_separated_fragment in sentence.strip().split() :
 		words.extend(_WORD_SPLIT.split(space_separated_fragment))
+	'''
+	words = text.text_to_word_sequence(sentence,
+	                                               filters=text.base_filter(),
+	                                               lower=True,
+	                                               split=" ")
 	return [w for w in words if w]
 
 
@@ -103,8 +110,9 @@ def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size,
 	min_len = 10000000
 	max_len = 0
 	avg_len = 0.0
-	if gfile.Exists(vocabulary_path):
-		os.remove(vocabulary_path)
+	
+	#if gfile.Exists(vocabulary_path):
+	#	os.remove(vocabulary_path)
 	if not gfile.Exists(vocabulary_path) :
 		print("Creating vocabulary %s from data %s" % (vocabulary_path, data_path))
 		vocab = {}
@@ -135,7 +143,7 @@ def create_vocabulary(vocabulary_path, data_path, max_vocabulary_size,
 				for w in vocab_list :
 					vocab_file.write(w + b"\n")
 		return min_len, max_len, avg_len
-
+	return 0.0, 0.0, 0.0
 
 def initialize_vocabulary(vocabulary_path) :
 	"""Initialize vocabulary from file.
@@ -182,7 +190,7 @@ def sentence_to_token_ids(sentence, vocabulary,
 	if tokenizer :
 		words = tokenizer(sentence)
 	else :
-		words = basic_tokenizer(sentence)
+		words = basic_tokenizer(sentence.lower())
 	if not normalize_digits :
 		return [vocabulary.get(w, UNK_ID) for w in words]
 	# Normalize digits by 0 before looking words up in the vocabulary.
@@ -218,7 +226,11 @@ def data_to_token_ids(data, vocab,
 def pad_data(data, to_len):
 	# Decoder inputs get an extra "GO" symbol, and are padded then.
 	padded_data = []
+	
 	for l in data:
+		if len(l) >= to_len - 1:
+			padded_data.append([GO_ID] + l[:to_len-1])
+			continue
 		decoder_pad_size = to_len - len(l) - 1
 		padded_data.append([GO_ID] + l +
 							  [PAD_ID] * decoder_pad_size)

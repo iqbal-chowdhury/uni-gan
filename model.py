@@ -211,10 +211,12 @@ class GAN :
 		keep_prob = tf.placeholder(tf.float32, name='keep_prob')
 		
 		train = tf.placeholder(tf.int32, name='train')
-		if train is 1:
+		if train is not None:
 			trainable = True
 		else:
 			trainable = False
+		print train
+		print trainable
 		
 		caption_embeddings, seq_outputs, output_size, time_steps = \
 			self.seq_encoder(t_real_caption,
@@ -222,22 +224,25 @@ class GAN :
 			                         self.options['e_size'],
 			                         self.options['e_layers'])
 		txt_img_feat = tf.concat(1, [t_image_feat, caption_embeddings], name='e_img_concat')
-		l_1= slim.batch_norm(ops.linear(txt_img_feat, 2048, 'e_fcl_1'), trainable=trainable)
-		l_2 = tf.nn.dropout(ops.linear(l_1, 2048, 'e_fcl_2'), keep_prob=keep_prob)
-		l_3 = slim.batch_norm(ops.linear(l_2, 1024, 'e_fcl_3'), trainable=trainable)
-		l_4 = tf.nn.dropout(ops.linear(l_3, 1024, 'e_fcl_4'), keep_prob=keep_prob)
+		l_1= tf.nn.relu(ops.linear(txt_img_feat, 10000, 'e_fcl_1'))
+		l_2 = tf.nn.relu(slim.batch_norm(ops.linear(l_1, 5000, 'e_fcl_2'), trainable=trainable, scope='e_bn0'))
+		l_3 = tf.nn.relu(slim.batch_norm(ops.linear(l_2, 3000, 'e_fcl_3'), trainable=trainable, scope='e_bn1'))
+		l_4 = tf.nn.dropout(tf.nn.relu(ops.linear(l_3, 1024, 'e_fcl_4')), keep_prob=keep_prob)
+		l_5 = tf.nn.relu(ops.linear(l_4, 546, 'e_fcl_5'))
+		l_6 = ops.linear(l_5, self.options['n_classes'], 'e_sl')
 		
-		l_5 = ops.linear(l_4, self.options['n_classes'], 'e_sl')
-		
-		cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(l_5, t_real_classes))
+		cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(l_6, t_real_classes))
 		
 		# Evaluate model
-		correct_pred = tf.equal(tf.argmax(l_5, 1), tf.argmax(t_real_classes, 1))
+		correct_pred = tf.equal(tf.argmax(l_6, 1), tf.argmax(t_real_classes, 1))
 		accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 		
 		t_vars = tf.trainable_variables()
 		
 		e_vars = [var for var in t_vars if 'e_' in var.name]
+
+		for v in e_vars:
+			print v.name
 		
 		input_tensors = {
 			't_real_caption' : t_real_caption,

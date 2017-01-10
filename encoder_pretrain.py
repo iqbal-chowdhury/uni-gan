@@ -89,6 +89,7 @@ def main() :
 	
 	saver = tf.train.Saver()
 	if args.resume_model :
+		print(tf.train.latest_checkpoint(args.resume_model))
 		saver.restore(sess, tf.train.latest_checkpoint(args.resume_model))
 	
 	for i in range(args.epochs) :
