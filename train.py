@@ -219,11 +219,8 @@ def save_for_vis(data_dir, real_images, generated_images, image_files) :
 	for i in range(0, real_images.shape[0]) :
 		real_image_255 = np.zeros((64, 64, 3), dtype = np.uint8)
 		real_images_255 = (real_images[i, :, :, :])
-		scipy.misc.imsave(join(data_dir, 'samples/{}_{}.jpg'.format(i,
-		                                                            image_files[
-			                                                            i].split(
-			                                                            '/')[
-			                                                            -1])),
+		scipy.misc.imsave(join(data_dir,
+			   'samples/{}_{}.jpg'.format(i, image_files[i].split('/')[-1])),
 		                  real_images_255)
 
 		fake_image_255 = np.zeros((64, 64, 3), dtype = np.uint8)

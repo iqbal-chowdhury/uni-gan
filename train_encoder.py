@@ -20,6 +20,7 @@ import os
 from pycocotools.coco import COCO
 import sklearn
 from sklearn.metrics import jaccard_similarity_score
+import progressbar
 
 # Embedding
 max_features = 25000
@@ -153,6 +154,53 @@ def build_model():
                   metrics=['accuracy'])
     return model
 
+def get_predictions(model):
+
+    pred_model = Sequential()
+    pred_model.add(Embedding(max_features, embedding_size,
+                             input_length=maxlen,
+                             weights=model.layers[0].get_weights()))
+    pred_model.add(Dropout(0.25))
+    pred_model.add(Convolution1D(nb_filter=nb_filter,
+                            filter_length=filter_length,
+                            border_mode='valid',
+                            activation='relu',
+                            subsample_length=1,
+                            weights=model.layers[2].get_weights()))
+    pred_model.add(MaxPooling1D(pool_length=pool_length))
+    pred_model.add(BatchNormalization(weights=model.layers[4].get_weights()))
+    pred_model.add(Convolution1D(nb_filter=128,
+                            filter_length=5,
+                            border_mode='same',
+                            activation='relu',
+                            subsample_length=1,
+                            weights=model.layers[5].get_weights()))
+    # pred_model.add(MaxPooling1D(pool_length=2))
+    pred_model.add(BatchNormalization(weights=model.layers[6].get_weights()))
+    pred_model.add(Convolution1D(nb_filter=256,
+                            filter_length=3,
+                            border_mode='valid',
+                            activation='relu',
+                            subsample_length=1,
+                            weights=model.layers[7].get_weights()))
+    pred_model.add(MaxPooling1D(pool_length=2))
+    pred_model.add(BatchNormalization(weights=model.layers[9].get_weights()))
+    pred_model.add(LSTM(lstm_output_size,
+                                weights=model.layers[10].get_weights()))
+    pred_model.compile(loss='categorical_crossentropy', optimizer='adam')
+
+    features_dict = {}
+    bar = progressbar.ProgressBar(redirect_stdout=True,
+                                          maxval=len(val_image_list))
+    for i, img in enumerate(val_image_list):
+        caps = val_coco_captions[img]
+        preds = pred_model.predict(caps)
+        features_dict[img] = preds
+        bar.update(i)
+    bar.finish()
+    pickle.dump(features_dict, open(os.path.join(dataDir,
+                                                 'val_features_dict.pkl'),
+                                    "wb"))
 
 def test(model, k=1):
     X_val, y_val = get_batch(dataType='val', batch_size=40000)
@@ -224,5 +272,9 @@ if __name__ == '__main__':
     else:
         print('Fucked up')
         sys.exit(0)
+
+    '''
     for i in range(10):
         test(model, k=i)
+    '''
+    get_predictions(model)

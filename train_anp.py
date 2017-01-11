@@ -13,10 +13,11 @@ from skimage import io
 import random
 from keras.models import Sequential, model_from_json, load_model
 import pickle
+import progressbar
 
 dataRoot = 'Data/anp'
 datarepo_path = os.path.join(dataRoot, "images")
-target_file_path = os.path.join(dataRoot, "allanps.txt")
+target_file_path = os.path.join(dataRoot, "selectedanps.txt")
 ser_loaded_data_path = os.path.join(dataRoot, "image_dict.pkl")
 tr_image_ids = []
 val_image_ids = []
@@ -69,48 +70,112 @@ def get_one_hot_targets(target_file_path):
 
     return target, one_hot_targets, n_target
 
-def load_data(data_dir, target_file_path, ser_file_path):
+def load_data(data_dir, target_file_path, n_anps=200):
     data_path = os.path.join(data_dir, 'english.csv')
     labels = []
     image_ids = []
+    selected_images = []
     image_dict = {}
+    anp_dict = {}
     n_instances = 0
+    n_selected_images = 0
     if os.path.exists(os.path.join(dataRoot, 'image_dict.pkl')) and \
         os.path.exists(os.path.join(dataRoot, 'labels.pkl')) and \
+        os.path.exists(os.path.join(dataRoot, 'selected_anps.pkl')) and \
+        os.path.exists(os.path.join(dataRoot, 'selected_images.pkl')) and \
+        os.path.exists(os.path.join(dataRoot, 'anp_dict.pkl')) and \
         os.path.exists(os.path.join(dataRoot, 'image_ids.pkl')):
         print('Loading saved data objects. It might take some time so sit '
               'back and relax.')
+
+        print('Pickling image_dict.pkl')
         image_dict = pickle.load(open(os.path.join(dataRoot, 'image_dict.pkl')))
+
+        print('Pickling anp_dict.pkl')
+        anp_dict = pickle.load(open(os.path.join(dataRoot, 'anp_dict.pkl')))
+
+        print('Pickling selected_images.pkl')
+        selected_images = pickle.load(
+            open(os.path.join(dataRoot, 'selected_images.pkl')))
+
+        print('Pickling selected_anps.pkl')
+        selected_anps = pickle.load(
+            open(os.path.join(dataRoot, 'selected_anps.pkl')))
+
+        print('Pickling labels.pkl')
         labels = pickle.load(open(os.path.join(dataRoot, 'labels.pkl')))
+
+        print('Pickling image_ids.pkl')
         image_ids = pickle.load(open(os.path.join(dataRoot, 'image_ids.pkl')))
         n_instances = len(image_dict.keys())
+        n_selected_images = len(selected_images)
     else:
+
         with open(data_path, 'rb') as csvfile:
             rows = csv.DictReader(csvfile, delimiter=',', )
+            print('Extracting Rows from ' + data_path)
+            pklbar = progressbar.ProgressBar(redirect_stdout=True,
+                                             maxval=progressbar.UnknownLength)
             for i, row in enumerate(rows):
                 if i % 100 == 0 and i != 0:
-                    print('Extracting Row ' + str(i))
+                    pklbar.update(i)
+
                 labels.append(row['ANP'])
                 image_ids.append(i)
                 image_dict[i] = {
                     'classlbl': row['ANP'],
                     'image_url': row['image_url']
                 }
+                if row['ANP'] not in anp_dict:
+                    anp_dict[row['ANP']] = [i]
+                else:
+                    anp_dict[row['ANP']].append(i)
 
                 n_instances += 1
+        pklbar.finish()
+        print('Selecting ' + str(n_anps) + 'ANPs')
+        all_anps = anp_dict.keys()
+        anps_idx_200 = np.random.randint(0, len(all_anps), size=n_anps)
+        selected_anps = np.take(all_anps, anps_idx_200)
+        for anp in selected_anps:
+            selected_images = selected_images + anp_dict[anp]
+        n_selected_images = len(selected_images)
+        print('n_images_selected : ' + str(n_selected_images))
+
+
+        print('Pickling selected_anps.pkl' )
+        pickle.dump(selected_anps, open(os.path.join(dataRoot,
+                                                       'selected_anps.pkl'),
+                                          "wb"))
+
+        print('Pickling selected_images.pkl')
+        pickle.dump(selected_images, open(os.path.join(dataRoot,
+                                                  'selected_images.pkl'),
+                                    "wb"))
+
+        print('Pickling image_dict.pkl')
         pickle.dump(image_dict, open(os.path.join(dataRoot, 'image_dict.pkl'),
                                      "wb"))
+
+        print('Pickling anp_dict.pkl')
+        pickle.dump(anp_dict, open(os.path.join(dataRoot, 'anp_dict.pkl'),
+                                     "wb"))
+
+        print('Pickling labels.pkl')
         pickle.dump(labels, open(os.path.join(dataRoot, 'labels.pkl'),
                                      "wb"))
+
+        print('Pickling image_ids.pkl')
         pickle.dump(image_ids, open(os.path.join(dataRoot, 'image_ids.pkl'),
                                      "wb"))
+
     target = None
     n_targets = None
     one_hot_targets = None
 
     if not os.path.exists(target_file_path):
         with open(target_file_path, "w") as text_file:
-            targets = set(labels)
+            targets = selected_anps
             text_file.write('\n'.join(targets))
         target, one_hot_targets, n_target = get_one_hot_targets(
             target_file_path)
@@ -119,7 +184,7 @@ def load_data(data_dir, target_file_path, ser_file_path):
             target_file_path)
 
     return image_ids, image_dict, target, one_hot_targets, n_targets, \
-                n_instances
+                n_instances, n_selected_images, selected_images, anp_dict
 
 def load_process_images(image_ids, new_shape=(244, 244, 3)):
     processed_images = []
@@ -165,11 +230,11 @@ def build_model(n_classes):
     x = base_model.output
     x = Flatten()(x)
     # let's add a fully-connected layer
-    x = Dense(6024, activation='relu')(x)
-    x = Dropout(0.5)(x)
-    x = Dense(5402, activation='relu')(x)
+    x = Dense(1024, activation='relu')(x)
+    #x = Dropout(0.5)(x)
+    #x = Dense(5402, activation='relu')(x)
     # and a logistic layer -- let's say we have 200 classes
-    predictions = Dense(4421, activation='softmax')(x)
+    predictions = Dense(200, activation='softmax')(x)
     # let's add a fully-connected layer
 
     # and a logistic layer -- let's say we have 200 classes
@@ -188,20 +253,46 @@ def build_model(n_classes):
 
     return model
 
+def download_images(dwn_image_ids):
+    img = None
+    print('downloading images from urls. It will take a lot of time')
+
+    downloadbar = progressbar.ProgressBar(redirect_stdout=True,
+                                          maxval=len(dwn_image_ids))
+    for cnt, image_id in enumerate(dwn_image_ids):
+        if not os.path.exists(os.path.join(datarepo_path,
+                                           str(image_id) + '.png')):
+            try:
+                img = io.imread(image_dict[image_id]['image_url'])
+            except Exception as e:
+                print(e)
+                continue
+            io.imsave(os.path.join(datarepo_path, str(image_id) + '.png'), img)
+        if cnt%10 == 0 and cnt != 0:
+            downloadbar.update(cnt)
+    downloadbar.finish()
+
+image_ids, image_dict, target, one_hot_targets, n_targets, \
+n_instances, n_selected_images, selected_images, anp_dict = \
+    load_data(dataRoot, target_file_path, n_anps=200)
 
 if os.path.exists(os.path.join(dataRoot, 'train_ids.pkl')) and \
         os.path.exists(os.path.join(dataRoot, 'val_ids.pkl')):
     tr_image_ids = pickle.load(open(os.path.join(dataRoot, 'train_ids.pkl')))
     val_image_ids = pickle.load(open(os.path.join(dataRoot, 'val_ids.pkl')))
 else:
-    image_ids, image_dict, target, one_hot_targets, n_targets, \
-    n_instances = load_data(dataRoot, target_file_path, ser_loaded_data_path)
+    random.shuffle(selected_images)
+    n_train_instances = int(n_selected_images * 0.9)
 
-    random.shuffle(image_ids)
-    n_train_instances = int(n_instances * 0.75)
+    tr_image_ids = selected_images[0 :n_train_instances]
+    val_image_ids = selected_images[n_train_instances : -1]
+    pickle.dump(tr_image_ids,
+                open(os.path.join(dataRoot, 'train_ids.pkl'), "wb"))
+    pickle.dump(val_image_ids,
+                open(os.path.join(dataRoot, 'val_ids.pkl'), "wb"))
 
-    tr_image_ids = image_ids[0 :n_train_instances]
-    val_image_ids = image_ids[n_train_instances : -1]
+download_images(tr_image_ids)
+download_images(val_image_ids)
 
 
 
@@ -225,13 +316,16 @@ def train():
         model = load_model(os.path.join(dataRoot, "model.h5"))
 
     for i in range(30):
+        print('epoch: ' + str(i))
         batch_count = 0
+        epochbar = progressbar.ProgressBar(redirect_stdout=True,
+                                           max_value=progressbar.UnknownLength)
         while(1):
             start = batch_count*batch_size
             X_train, y_train = None, None
             try:
                 X_train, y_train = get_batch(start, dataType='train',
-                                             batch_size=128)
+                                             batch_size=64)
             except Exception as e:
                 print('Error occurred while Getting Batch. Skipping this '
                       'batch.')
@@ -242,6 +336,7 @@ def train():
                 break
             [loss, accuracy] = model.train_on_batch(X_train, y_train)
             batch_count += 1
+            epochbar.update(batch_count)
             if batch_count % 1 == 0 and batch_count != 0:
                 print('Itr ' + str(batch_count) + '\ttraining loss: ' + str(loss) +
                 '\ttraining accuracy: ' + str(accuracy))
@@ -249,7 +344,7 @@ def train():
                 model.save(os.path.join(dataRoot, 'model.h5'))
                 print('Saving trained model')
                 try:
-                    X_val, y_val = get_batch(0, dataType='val', batch_size=100)
+                    X_val, y_val = get_batch(0, dataType='val', batch_size=64)
                     [loss, accuracy] = model.test_on_batch(X_val, y_val)
                     print('testing loss: ' + str(loss))
                     print('testing accuracy: ' + str(accuracy))
@@ -259,14 +354,14 @@ def train():
                     traceback.print_stack()
                     continue
                 # save as JSON
-
+        epochbar.finish()
 
         if i % 2 == 0 and i != 0:
             model.save(os.path.join(dataRoot, 'model.h5'))
             # save as JSON
             print('Saving trained model')
             try:
-                X_val, y_val = get_batch(0, dataType='val', batch_size=100)
+                X_val, y_val = get_batch(0, dataType='val', batch_size=64)
                 [loss, accuracy] = model.test_on_batch(X_val, y_val)
                 print('testing loss: ' + str(loss))
                 print('testing accuracy: ' + str(accuracy))
