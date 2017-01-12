@@ -103,7 +103,6 @@ def get_batch(dataType='train', batch_size=64):
         imgs = np.take(tr_image_list, batch_idx)
         for i, img in enumerate(imgs):
             X.append(tr_coco_captions[img][np.random.randint(0, 4)])
-            # print('Maja')
             # print(tr_img_classes[img])
             # print(tr_img_classes[img].shape)
             y[i:] = tr_img_classes[img]
@@ -192,7 +191,7 @@ def get_predictions(model):
     features_dict = {}
     bar = progressbar.ProgressBar(redirect_stdout=True,
                                           maxval=len(val_image_list))
-    for i, img in enumerate(val_image_list):
+    for i, img in enumerate(tr_image_list):
         caps = val_coco_captions[img]
         preds = pred_model.predict(caps)
         features_dict[img] = preds

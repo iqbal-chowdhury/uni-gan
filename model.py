@@ -44,9 +44,9 @@ class GAN :
 		# t_real_caption = tf.placeholder('float32', [self.options[
 		# 'batch_size'], self.options['caption_vector_length']],
 		# name = 'real_caption_input')
-		t_real_caption = [tf.placeholder('float32',
-		                                [self.options['batch_size'], 1],
-		                                name = 'real_caption_input' + str(i)) for i in range(self.options['e_max_step'])]
+		t_real_caption = tf.placeholder('float32',
+		                     [self.options['batch_size'],
+		                      self.options['caption_vector_length']], name='real_captions')
 		
 		#t_real_caption = tf.reshape(t_real_caption, [-1, 1])
 		#t_real_caption = tf.split(0, self.options['e_max_step'], t_real_caption)
@@ -63,25 +63,19 @@ class GAN :
 										[self.options['batch_size'],
 										 self.options['n_classes']], name='wrong_classes')
 
-
-		caption_embeddings, seq_outputs, output_size, time_steps = \
-			self.seq_encoder(t_real_caption,
-			                 self.options['caption_vector_length'],
-			                 self.options['e_size'],
-			                 self.options['e_layers'])
-
-		fake_image, attn_spn = self.generator(t_z, caption_embeddings,
-			seq_outputs, output_size, time_steps)
+		fake_image = self.generator(t_z, t_real_caption)
 
 		disc_real_image, disc_real_image_logits, disc_real_image_aux, \
 			disc_real_image_aux_logits = self.discriminator(
-				t_real_image, caption_embeddings, self.options['n_classes'])
+				t_real_image, t_real_caption, self.options['n_classes'])
+
 		disc_wrong_image, disc_wrong_image_logits, disc_wrong_image_aux, \
 			disc_wrong_image_aux_logits  = self.discriminator(
-				t_wrong_image, caption_embeddings, self.options['n_classes'], reuse = True)
+				t_wrong_image, t_real_caption, self.options['n_classes'], reuse = True)
+
 		disc_fake_image, disc_fake_image_logits, disc_fake_image_aux, \
 			disc_fake_image_aux_logits  = self.discriminator(
-				fake_image, caption_embeddings, self.options['n_classes'], reuse = True)
+				fake_image, t_real_caption, self.options['n_classes'], reuse = True)
 
 		tf.get_variable_scope()._reuse = False
 		
@@ -116,20 +110,19 @@ class GAN :
 		d_loss3 = tf.reduce_mean(
 			tf.nn.sigmoid_cross_entropy_with_logits(disc_fake_image_logits, tf.zeros_like(disc_fake_image)))
 
-		d_loss = d_loss1 + d_loss1_1 + d_loss2  + d_loss3 + g_loss_2
+		d_loss = d_loss1 + d_loss1_1 + d_loss2 + d_loss2_1 + d_loss3 + g_loss_2
 		
 		g_loss = g_loss_1 + g_loss_2
 
 		t_vars = tf.trainable_variables()
-		'''
+
+		print('List of all variables')
 		for v in t_vars:
 			print(v.name)
 			print(v)
-		'''
-		d_vars = [var for var in t_vars if 'd_' in var.name or 'e_' in var.name]
-		g_vars = [var for var in t_vars if 'g_' in var.name or
-		                                    'a_' in var.name or
-		                                    'e_' in var.name]
+
+		d_vars = [var for var in t_vars if 'd_' in var.name]
+		g_vars = [var for var in t_vars if 'g_' in var.name]
 
 		input_tensors = {
 			't_real_image' : t_real_image,
@@ -160,8 +153,7 @@ class GAN :
 			'd_loss3'                   : d_loss3,
 			'disc_real_image_logits'    : disc_real_image_logits,
 			'disc_wrong_image_logits'   : disc_wrong_image,
-			'disc_fake_image_logits'    : disc_fake_image_logits,
-			'attn_span'                 : attn_spn
+			'disc_fake_image_logits'    : disc_fake_image_logits
 		}
 
 		return input_tensors, variables, loss, outputs, checks
@@ -340,7 +332,7 @@ class GAN :
 
 	# GENERATOR IMPLEMENTATION based on :
 	# https://github.com/carpedm20/DCGAN-tensorflow/blob/master/model.py
-	def generator(self, t_z, t_text_embedding, seq_outputs, output_size, time_steps) :
+	def generator(self, t_z, t_text_embedding) :
 		s = self.options['image_size']
 		s2, s4, s8, s16 = int(s / 2), int(s / 4), int(s / 8), int(s / 16)
 
@@ -355,8 +347,6 @@ class GAN :
 		h1 = ops.deconv2d(h0, [self.options['batch_size'], s8, s8,
 		                       self.options['gf_dim'] * 4], name = 'g_h1')
 		h1 = tf.nn.relu(slim.batch_norm(h1, scope="g_bn1"))
-		
-		#print(h3_flat)
 
 		h2 = ops.deconv2d(h1, [self.options['batch_size'], s4, s4,
 		                       self.options['gf_dim'] * 2], name = 'g_h2')
@@ -365,28 +355,10 @@ class GAN :
 		h3 = ops.deconv2d(h2, [self.options['batch_size'], s2, s2,
 		                       self.options['gf_dim'] * 1], name = 'g_h3')
 		h3 = tf.nn.relu(slim.batch_norm(h3, scope="g_bn3"))
-		print h3
-		h3_flat = tf.reshape(h3, [self.options['batch_size'], -1])
-		print h3_flat
-		h3_squeezed = ops.linear(h3_flat, output_size, 'g_h3_lin')
-		# print(h3_squeezed)
-		print h3_squeezed
-		attn_sum, attn_span = self.attention(h3_squeezed, seq_outputs,
-		                                                output_size, time_steps)
-		print attn_sum
-		attn_sum = tf.expand_dims(attn_sum, 1)
-		attn_sum = tf.expand_dims(attn_sum, 2)
-		print attn_sum
-		tiled_attn = tf.tile(attn_sum, [1, 32, 32, 1], name='tiled_attention')
-		print tiled_attn
-		h3_concat = tf.concat(3, [h3, tiled_attn], name = 'h3_concat')
-		print h3_concat
-		#h3_attn = tf.concat(1, [h3_squeezed, attn_sum], name='h3_attn')
 
-		h4 = ops.deconv2d(h3_concat, [self.options['batch_size'], s, s, 3],
+		h4 = ops.deconv2d(h3, [self.options['batch_size'], s, s, 3],
 		                  name = 'g_h4')
-		print h4
-		return (tf.tanh(h4) / 2. + 0.5), attn_span
+		return (tf.tanh(h4) / 2. + 0.5)
 
 	# GENERATOR IMPLEMENTATION based on :
 	# https://github.com/carpedm20/DCGAN-tensorflow/blob/master/model.py

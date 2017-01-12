@@ -13,7 +13,7 @@ dataType='train2014'
 annFile='%s/annotations_inst/instances_%s.json'%(dataDir,dataType)
 vocab_size = 100000
 annFile_caps = '%s/annotations_caps/captions_%s.json'%(dataDir,dataType)
-coco_caps=COCO(annFile)
+
 
 all_caps_dir = os.path.join(dataRoot, 'mscoco/all_captions.txt')
 vocab_path = os.path.join(dataRoot, "mscoco/vocab%d.txt" % vocab_size)

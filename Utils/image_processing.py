@@ -4,9 +4,21 @@ import random
 import skimage
 import skimage.io
 import skimage.transform
+import os
 
-def load_image_array(image_file, image_size):
-	img = skimage.io.imread(image_file)
+def load_image_array(image_file, image_size,
+					 image_id, data_dir='Data/mscoco/train2014'):
+	img = None
+	if os.path.exists(image_file):
+		#print('found' + image_file)
+		img = skimage.io.imread(image_file)
+	else:
+		#print('notfound' + image_file)
+		img = skimage.io.imread('http://mscoco.org/images/%d' % (image_id))
+		img_path = os.path.join(data_dir, 'COCO_%s2014_%.12d.jpg' % ( 'train',
+																	  image_id))
+		skimage.io.imsave(img_path, img)
+
 	# GRAYSCALE
 	if len(img.shape) == 2:
 		img_new = np.ndarray( (img.shape[0], img.shape[1], 3), dtype = 'uint8')
