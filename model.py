@@ -158,29 +158,17 @@ class GAN :
 
 		return input_tensors, variables, loss, outputs, checks
 
-	def build_generator(self) :
+	def build_generator(self):
 		img_size = self.options['image_size']
-		t_real_caption = [tf.placeholder('float32',
-		                                 [self.options['batch_size'], 1],
-		                                 name='real_caption_input' + str(i)) for i in
-		                  range(self.options['e_max_step'])]
+		t_real_caption = tf.placeholder('float32', [self.options['batch_size'], self.options['caption_vector_length']], name = 'real_caption_input')
+		t_z = tf.placeholder('float32', [self.options['batch_size'], self.options['z_dim']])
+		fake_image = self.sampler(t_z, t_real_caption)
 		
-		t_z = tf.placeholder('float32', [self.options['batch_size'],
-		                                 self.options['z_dim']])
-		
-		
-		caption_embeddings, seq_outputs, output_size, time_steps = \
-			self.sampler_seq_encoder(t_real_caption,
-			                 self.options['caption_vector_length'],
-			                 self.options['e_size'],
-			                 self.options['e_layers'],)
-		fake_image = self.sampler(t_z, caption_embeddings)
-
 		input_tensors = {
 			't_real_caption' : t_real_caption,
 			't_z' : t_z
 		}
-
+		
 		outputs = {
 			'generator' : fake_image
 		}
@@ -298,10 +286,11 @@ class GAN :
 		preds = tf.sigmoid(caption_embeddings_logits)
 		
 		return preds, outputs, output_size, time_steps
-	# Sample Images for a text embedding
-	def sampler(self, t_z, t_text_embedding) :
-		tf.get_variable_scope().reuse_variables()
 
+	# Sample Images for a text embedding
+	def sampler(self, t_z, t_text_embedding):
+		tf.get_variable_scope().reuse_variables()
+		
 		s = self.options['image_size']
 		s2, s4, s8, s16 = int(s / 2), int(s / 4), int(s / 8), int(s / 16)
 
@@ -311,23 +300,22 @@ class GAN :
 		z_ = ops.linear(z_concat, self.options['gf_dim'] * 8 * s16 * s16,
 		                'g_h0_lin')
 		h0 = tf.reshape(z_, [-1, s16, s16, self.options['gf_dim'] * 8])
-		h0 = tf.nn.relu(slim.batch_norm(h0, trainable = False, reuse=True, scope="g_bn0"))
+		h0 = tf.nn.relu(slim.batch_norm(h0, scope="g_bn0"))
 
 		h1 = ops.deconv2d(h0, [self.options['batch_size'], s8, s8,
 		                       self.options['gf_dim'] * 4], name = 'g_h1')
-		h1 = tf.nn.relu(slim.batch_norm(h1, trainable = False, reuse=True, scope="g_bn1"))
+		h1 = tf.nn.relu(slim.batch_norm(h1, scope="g_bn1"))
 
 		h2 = ops.deconv2d(h1, [self.options['batch_size'], s4, s4,
 		                       self.options['gf_dim'] * 2], name = 'g_h2')
-		h2 = tf.nn.relu(slim.batch_norm(h2, trainable = False, reuse=True, scope="g_bn2"))
+		h2 = tf.nn.relu(slim.batch_norm(h2, scope="g_bn2"))
 
 		h3 = ops.deconv2d(h2, [self.options['batch_size'], s2, s2,
 		                       self.options['gf_dim'] * 1], name = 'g_h3')
-		h3 = tf.nn.relu(slim.batch_norm(h3, trainable = False, reuse=True, scope="g_bn3"))
+		h3 = tf.nn.relu(slim.batch_norm(h3, scope="g_bn3"))
 
 		h4 = ops.deconv2d(h3, [self.options['batch_size'], s, s, 3],
 		                  name = 'g_h4')
-
 		return (tf.tanh(h4) / 2. + 0.5)
 
 	# GENERATOR IMPLEMENTATION based on :
@@ -432,7 +420,7 @@ class GAN :
 		reduced_text_embeddings = tf.expand_dims(reduced_text_embeddings, 1)
 		reduced_text_embeddings = tf.expand_dims(reduced_text_embeddings, 2)
 		tiled_embeddings = tf.tile(reduced_text_embeddings,
-		                           [1, 4, 4, 1],
+		                           [1, 8, 8, 1],
 		                           name = 'tiled_embeddings')
 
 		h3_concat = tf.concat(3, [h3, tiled_embeddings], name = 'h3_concat')
