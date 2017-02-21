@@ -125,8 +125,8 @@ def save_caption_vectors_flowers(data_dir, vocab_size, recreate_vocab=True,
 
     random.shuffle(img_ids)
     n_train_instances = int(img_ids * 0.9)
-    tr_image_ids = selected_images[0 :n_train_instances]
-    val_image_ids = selected_images[n_train_instances : -1]
+    tr_image_ids = img_ids[0 :n_train_instances]
+    val_image_ids = img_ids[n_train_instances : -1]
 
     pickle.dump(image_captions,
                 open(os.path.join(data_dir, 'flowers_caps.pkl'), "wb"))
@@ -134,7 +134,7 @@ def save_caption_vectors_flowers(data_dir, vocab_size, recreate_vocab=True,
     pickle.dump(tr_image_ids,
                 open(os.path.join(data_dir, 'train_ids.pkl'), "wb"))
     pickle.dump(val_image_ids,
-                open(os.path.join(dataRoot, 'val_ids.pkl'), "wb"))
+                open(os.path.join(data_dir, 'val_ids.pkl'), "wb"))
 
     ec_pkl_path = (join(data_dir, 'flower_tv.pkl'))
     pickle.dump(encoded_captions, open(ec_pkl_path, "wb"))
