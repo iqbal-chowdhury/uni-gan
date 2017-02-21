@@ -81,7 +81,6 @@ def prepare_data(coco, mode='train'):
 	imgIds = coco.getImgIds()
 	image_classes = {}
 
-
 	for i, imgid in enumerate(imgIds):
 		if i%100 == 0:
 			print(str(i) + ' Images loaded')
@@ -100,10 +99,9 @@ def prepare_data(coco, mode='train'):
 
 		lbl_k_hot = np.sum(lbl_k_hot, axis=0)
 		if lbl_k_hot.size == 0:
-			print('maja')
 			lbl_k_hot = np.zeros(80)
 		image_classes[imgid] = lbl_k_hot
-		print('Cls one hot lbl : ' + str(lbl_k_hot.shape))
+
 		#annIds_ = coco_caps.getAnnIds(imgIds=imgid)
 		#anns = coco_caps.loadAnns(annIds_)
 		#for ann in anns :
