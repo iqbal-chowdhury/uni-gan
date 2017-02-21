@@ -215,14 +215,20 @@ def main():
 
 def load_training_data(data_dir, data_set) :
 	if data_set == 'flowers' :
-		flower_captions = pickle.load(open(join(data_dir, 'flowers', 'tr_features_dict.pkl'), "rb"))
-		#h1 = h5py.File(join(data_dir, 'flower_tc.hdf5'))
-		img_classes = pickle.load(open(join(data_dir, 'flowers', 'flower_tc.pkl'), "rb"))
+		flower_captions = pickle.load(
+			open(join(data_dir, 'flowers', 'tr_features_dict.pkl'), "rb"))
 
+		img_classes = pickle.load(
+			open(join(data_dir, 'flowers', 'flower_tc.pkl'), "rb"))
+
+		flower_captions = pickle.load(
+			open(join(data_dir, 'flowers', 'tr_features_dict.pkl'), "rb"))
+		# h1 = h5py.File(join(data_dir, 'flower_tc.hdf5'))
+		img_classes = pickle.load(
+			open(join(data_dir, 'flowers', 'flower_tc.pkl'), "rb"))
 		
 		n_classes = 102
 		max_caps_len = 4800
-
 
 		image_list = [key for key in flower_captions]
 		image_list.sort()
