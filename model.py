@@ -3,6 +3,7 @@ import tensorflow.contrib.slim as slim
 #import GRUCell, DropoutWrapper,MultiRNNCell
 import numpy as np
 from Utils import ops
+from Utils.anp import MVSOCaffeNet as MyNet
 
 
 class GAN :
@@ -41,15 +42,15 @@ class GAN :
 		                               [self.options['batch_size'],
 		                                    img_size, img_size, 3],
 		                               name = 'wrong_image')
-		# t_real_caption = tf.placeholder('float32', [self.options[
-		# 'batch_size'], self.options['caption_vector_length']],
-		# name = 'real_caption_input')
+
+		anp_input_images = tf.placeholder(tf.float32, [self.options[
+			                                               'batch_size'], 227, 227, 3],
+		                                  name = 'anp_input_images')
+
 		t_real_caption = tf.placeholder('float32',
 		                     [self.options['batch_size'],
 		                      self.options['caption_vector_length']], name='real_captions')
-		
-		#t_real_caption = tf.reshape(t_real_caption, [-1, 1])
-		#t_real_caption = tf.split(0, self.options['e_max_step'], t_real_caption)
+
 
 		t_z = tf.placeholder('float32',
 		                     [self.options['batch_size'],
@@ -130,7 +131,8 @@ class GAN :
 			't_real_caption' : t_real_caption,
 			't_z' : t_z,
 			't_real_classes' : t_real_classes,
-			't_wrong_classes' : t_wrong_classes
+			't_wrong_classes' : t_wrong_classes,
+			'anp_input_images' : anp_input_images
 		}
 
 		variables = {

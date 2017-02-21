@@ -7,7 +7,6 @@ import pickle
 import argparse
 import skipthoughts
 import h5py
-import data_util
 import traceback
 import pickle
 
