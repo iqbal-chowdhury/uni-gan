@@ -84,7 +84,9 @@ def main():
 	if not os.path.exists(model_val_samples_dir):
 		os.makedirs(model_val_samples_dir)
 
-	loaded_data = load_training_data(join(args.data_dir, 'datasets'), args.data_set)
+	datasets_root_dir = join(args.data_dir, 'datasets')
+
+	loaded_data = load_training_data(datasets_root_dir, args.data_set)
 	model_options = {
 		'z_dim': args.z_dim,
 		't_dim': args.t_dim,
@@ -129,7 +131,7 @@ def main():
 			real_classes, wrong_classes, image_caps, image_ids  = \
 				get_training_batch(batch_no, args.batch_size, args.image_size,
 									args.z_dim, args.caption_vector_length,
-									'train', args.data_dir, args.data_set,
+									'train', datasets_root_dir, args.data_set,
 								   	loaded_data)
 
 			# DISCR UPDATE
@@ -180,12 +182,36 @@ def main():
 			batch_no += 1
 			if (batch_no % args.save_every) == 0:
 				print "Saving Images, Model"
-				save_for_vis(model_samples_dir, real_images, gen, image_files, image_caps, image_ids, args.image_size)
+				save_for_vis(model_samples_dir, real_images, gen, image_files, image_caps,
+							 image_ids, args.image_size, args.z_dim)
 				save_path = saver.save(sess,join(model_chkpnts_dir, "latest_model_{}_temp.ckpt".format(
 										   args.data_set)))
+				val_captions, val_z_noise, val_image_files, val_image_caps, val_image_ids = \
+					get_val_caps_batch(args.batch_size, loaded_data, args.data_set, 'val', datasets_root_dir)
+				for val_viz_cnt in range(0, 4):
+					val_gen = sess.run(
+						[outputs['generator']],
+						feed_dict={
+							input_tensors['t_real_caption']: val_captions,
+							input_tensors['t_z']: val_z_noise
+						})
+					save_for_viz_val(model_val_samples_dir, val_gen, val_image_files, val_image_caps,
+									 val_image_ids, args.image_size, val_viz_cnt)
+
 		if i % 5 == 0:
 			save_path = saver.save(sess, join(model_chkpnts_dir,"model_after_{}_epoch_{}.ckpt".format(
 				args.data_set, i)))
+			val_captions, val_z_noise, val_image_files, val_image_caps, val_image_ids = \
+				get_val_caps_batch(args.batch_size, loaded_data, args.data_set, 'val', datasets_root_dir)
+			for val_viz_cnt in range(0, 10):
+				val_gen = sess.run(
+					[outputs['generator']],
+					feed_dict={
+						input_tensors['t_real_caption']: val_captions,
+						input_tensors['t_z']: val_z_noise
+					})
+				save_for_viz_val(model_val_samples_dir, val_gen, val_image_files, val_image_caps,
+								 val_image_ids, args.image_size, val_viz_cnt)
 
 def load_training_data(data_dir, data_set) :
 	if data_set == 'flowers' :
@@ -263,6 +289,29 @@ def load_training_data(data_dir, data_set) :
 			'val_data_len' : val_n_imgs
 		}
 
+def save_for_viz_val(data_dir, generated_images, image_files, image_caps, image_ids, image_size, id):
+	shutil.rmtree(data_dir)
+	os.makedirs(data_dir)
+	for i in range(0, generated_images.shape[0]) :
+		image_dir = join(data_dir, str(image_ids[i]))
+		if not os.path.exists(image_dir):
+			os.makedirs(image_dir)
+
+		real_image_path = join(image_dir,
+							   '{}_{}.jpg'.format(image_ids[i], image_files[i].split('/')[-1]))
+		if not os.path.exists(image_dir):
+			real_images_255 = image_processing.load_image_array(image_files[i],
+															image_size,
+															image_ids[i])
+			scipy.misc.imsave(real_image_path, real_images_255)
+
+		caps_dir = join(image_dir, "caps.txt")
+		if not os.path.exists(caps_dir):
+			with open(caps_dir, "w") as text_file:
+				text_file.write(image_caps[i])
+
+		fake_images_255 = (generated_images[i, :, :, :])
+		scipy.misc.imsave(join(image_dir, 'fake_image_{}.jpg'.format(id)), fake_images_255)
 
 def save_for_vis(data_dir, real_images, generated_images, image_files, image_caps, image_ids, image_size) :
 	shutil.rmtree(data_dir)
@@ -285,6 +334,28 @@ def save_for_vis(data_dir, real_images, generated_images, image_files, image_cap
 		text_file.write(str_caps)
 	with open(join(data_dir, "ids.txt"), "w") as text_file:
 		text_file.write(str_image_ids)
+
+def get_val_caps_batch(batch_size, loaded_data, data_set, split, data_dir, z_dim):
+	if data_set == 'mscoco':
+		captions = np.zeros((batch_size, loaded_data['max_caps_len']))
+		batch_idx = np.random.randint(0, loaded_data['val_data_len'],
+									  size=batch_size)
+		image_ids = np.take(loaded_data['val_img_list'], batch_idx)
+		image_files = []
+		image_caps = []
+		for idx, image_id in enumerate(image_ids):
+			image_file = join(data_dir, 'mscoco/%s2014/COCO_%s2014_%.12d.jpg' % (
+				split, split, image_id))
+			random_caption = random.randint(0, 4)
+			captions[idx, :] = \
+				loaded_data['val_captions'][image_id][random_caption][0:loaded_data['max_caps_len']]
+			annIds_ = loaded_data['val_coco_caps_obj'].getAnnIds(imgIds=image_id)
+			anns = loaded_data['val_coco_caps_obj'].loadAnns(annIds_)
+			img_caps = [ann['caption'] for ann in anns]
+			image_caps.append(img_caps[random_caption])
+			image_files.append(image_file)
+		z_noise = np.random.uniform(-1, 1, [batch_size, z_dim])
+		return captions, z_noise, image_files, image_caps, image_ids
 
 def get_training_batch(batch_no, batch_size, image_size, z_dim,
                        caption_vector_length, split, data_dir, data_set,
@@ -311,7 +382,7 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim,
 		'''
 		for idx, image_id in enumerate(image_ids) :
 			image_file = join(data_dir, 'mscoco/%s2014/COCO_%s2014_%.12d.jpg' % (
-			split, split, image_id))
+				split, split, image_id))
 			image_array = image_processing.load_image_array(image_file,
 			                                                	image_size,
 															image_id)
@@ -329,8 +400,8 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim,
 			else:
 				print('case')
 
-			annIds_ = loaded_data['val_coco_caps_obj'].getAnnIds(imgIds=image_id)
-			anns = loaded_data['val_coco_caps_obj'].loadAnns(annIds_)
+			annIds_ = loaded_data['tr_coco_caps_obj'].getAnnIds(imgIds=image_id)
+			anns = loaded_data['tr_coco_caps_obj'].loadAnns(annIds_)
 			img_caps = [ann['caption'] for ann in anns]
 
 			image_caps.append(img_caps[random_caption])
