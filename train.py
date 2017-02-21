@@ -63,9 +63,28 @@ def main():
 	parser.add_argument('--data_set', type=str, default="flowers",
 						help='Dat set: MS-COCO, flowers')
 
+	parser.add_argument('--model_name', type=str, default="model_1",
+						help='model_1 or model_2')
+
 	args = parser.parse_args()
 
-	loaded_data = load_training_data(args.data_dir, args.data_set)
+	model_dir = join(args.data_dir, 'training', args.model_name)
+	if not os.path.exists(model_dir):
+		os.makedirs(model_dir)
+
+	model_chkpnts_dir = join(model_dir, 'checkpoints')
+	if not os.path.exists(model_chkpnts_dir):
+		os.makedirs(model_chkpnts_dir)
+
+	model_samples_dir = join(model_dir, 'samples')
+	if not os.path.exists(model_samples_dir):
+		os.makedirs(model_samples_dir)
+
+	model_val_samples_dir = join(model_dir, 'val_samples')
+	if not os.path.exists(model_val_samples_dir):
+		os.makedirs(model_val_samples_dir)
+
+	loaded_data = load_training_data(join(args.data_dir, 'datasets'), args.data_set)
 	model_options = {
 		'z_dim': args.z_dim,
 		't_dim': args.t_dim,
@@ -107,7 +126,7 @@ def main():
 		while batch_no * args.batch_size < loaded_data['data_length']:
 
 			real_images, wrong_images, caption_vectors, z_noise, image_files, \
-			real_classes, wrong_classes = \
+			real_classes, wrong_classes, image_caps, image_ids  = \
 				get_training_batch(batch_no, args.batch_size, args.image_size,
 									args.z_dim, args.caption_vector_length,
 									'train', args.data_dir, args.data_set,
@@ -161,14 +180,12 @@ def main():
 			batch_no += 1
 			if (batch_no % args.save_every) == 0:
 				print "Saving Images, Model"
-				save_for_vis(args.data_dir, real_images, gen, image_files)
-				save_path = saver.save(sess,
-									   "Data/Models/latest_model_{"
-									   "}_temp.ckpt".format(
-										   args.data_set))
+				save_for_vis(model_samples_dir, real_images, gen, image_files, image_caps, image_ids, args.image_size)
+				save_path = saver.save(sess,join(model_chkpnts_dir, "latest_model_{}_temp.ckpt".format(
+										   args.data_set)))
 		if i % 5 == 0:
-			save_path = saver.save(sess, "Data/Models/model_after_{}_epoch_{}.ckpt".format(
-				args.data_set, i))
+			save_path = saver.save(sess, join(model_chkpnts_dir,"model_after_{}_epoch_{}.ckpt".format(
+				args.data_set, i)))
 
 def load_training_data(data_dir, data_set) :
 	if data_set == 'flowers' :
@@ -178,7 +195,7 @@ def load_training_data(data_dir, data_set) :
 
 		
 		n_classes = 102
-		max_caps_len = 256
+		max_caps_len = 4800
 
 
 		image_list = [key for key in flower_captions]
@@ -198,17 +215,36 @@ def load_training_data(data_dir, data_set) :
 
 	else :
 		tr_caps_features = pickle.load(
-			open(os.path.join(data_dir, 'mscoco', 'tr_features_dict.pkl'),
+			open(os.path.join(data_dir, 'mscoco/train', 'coco_tr_tv.pkl'),
 				 	"rb"))
 
 		tr_img_classes = pickle.load(
 			open(os.path.join(data_dir, 'mscoco/train', 'coco_tr_tc.pkl'),
 				 "rb"))
 
+		val_caps_features = pickle.load(
+			open(os.path.join(data_dir, 'mscoco/val', 'coco_tr_tv.pkl'),
+				 "rb"))
+
 		n_classes = 80
+		max_caps_len = 4800
 		tr_annFile = '%s/annotations_inst/instances_%s.json' % (
 								join(data_dir, 'mscoco'), 'train2014')
+		tr_annFile_caps = '%s/annotations_caps/captions_%s.json' % (join(data_dir, 'mscoco'), 'train2014')
+
+		val_annFile = '%s/annotations_inst/instances_%s.json' % (
+			join(data_dir, 'mscoco'), 'val2014')
+		val_annFile_caps = '%s/annotations_caps/captions_%s.json' % (join(data_dir, 'mscoco'), 'val2014')
+
+		val_caps_coco = COCO(val_annFile)
+		val_coco = COCO(val_annFile_caps)
+
+		val_img_list = val_coco.getImgIds()
+		val_n_imgs = len(val_img_list)
+
+		tr_caps_coco = COCO(tr_annFile_caps)
 		tr_coco = COCO(tr_annFile)
+
 		tr_image_list = tr_coco.getImgIds()
 		tr_n_imgs = len(tr_image_list)
 		return {
@@ -217,35 +253,46 @@ def load_training_data(data_dir, data_set) :
 			'data_length': tr_n_imgs,
 			'classes': tr_img_classes,
 			'n_classes': n_classes,
-			'max_caps_len': 128,
-			'coco_obj' : tr_coco
+			'max_caps_len': max_caps_len,
+			'tr_coco_obj' : tr_coco,
+			'tr_coco_caps_obj' : tr_caps_coco,
+			'val_coco_obj': val_coco,
+			'val_coco_caps_obj': val_caps_coco,
+			'val_img_list': val_img_list,
+			'val_captions' : val_caps_features,
+			'val_data_len' : val_n_imgs
 		}
 
 
-def save_for_vis(data_dir, real_images, generated_images, image_files) :
-	shutil.rmtree(join(data_dir, 'samples'))
-	os.makedirs(join(data_dir, 'samples'))
+def save_for_vis(data_dir, real_images, generated_images, image_files, image_caps, image_ids, image_size) :
+	shutil.rmtree(data_dir)
+	os.makedirs(data_dir)
 
 	for i in range(0, real_images.shape[0]) :
-		real_image_255 = np.zeros((64, 64, 3), dtype = np.uint8)
+		real_image_255 = np.zeros((image_size, image_size, 3), dtype = np.uint8)
 		real_images_255 = (real_images[i, :, :, :])
 		scipy.misc.imsave(join(data_dir,
-			   'samples/{}_{}.jpg'.format(i, image_files[i].split('/')[-1])),
+			   '{}_{}.jpg'.format(i, image_files[i].split('/')[-1])),
 		                  real_images_255)
 
-		fake_image_255 = np.zeros((64, 64, 3), dtype = np.uint8)
+		fake_image_255 = np.zeros((image_size, image_size, 3), dtype = np.uint8)
 		fake_images_255 = (generated_images[i, :, :, :])
-		scipy.misc.imsave(join(data_dir, 'samples/fake_image_{}.jpg'.format(
+		scipy.misc.imsave(join(data_dir, 'fake_image_{}.jpg'.format(
 			i)), fake_images_255)
-
+	str_caps = '\n'.join(image_caps)
+	str_image_ids = '\n'.join(image_ids)
+	with open(join(data_dir, "caps.txt"), "w") as text_file:
+		text_file.write(str_caps)
+	with open(join(data_dir, "ids.txt"), "w") as text_file:
+		text_file.write(str_image_ids)
 
 def get_training_batch(batch_no, batch_size, image_size, z_dim,
                        caption_vector_length, split, data_dir, data_set,
                        loaded_data = None) :
 	if data_set == 'mscoco' :
 
-		real_images = np.zeros((batch_size, 64, 64, 3))
-		wrong_images = np.zeros((batch_size, 64, 64, 3))
+		real_images = np.zeros((batch_size, image_size , image_size, 3))
+		wrong_images = np.zeros((batch_size, image_size, image_size, 3))
 		captions = np.zeros((batch_size, loaded_data['max_caps_len']))
 		real_classes = np.zeros((batch_size, loaded_data['n_classes']))
 		wrong_classes = np.zeros((batch_size, loaded_data['n_classes']))
@@ -256,6 +303,7 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim,
 		#							  size=batch_size)
 		image_ids = np.take(loaded_data['image_list'], img_range)
 		image_files = []
+		image_caps = []
 		'''
 		for i in range(batch_no * batch_size,
 					   batch_no * batch_size + batch_size):
@@ -280,6 +328,12 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim,
 					loaded_data['classes'][image_id][0:loaded_data['n_classes']]
 			else:
 				print('case')
+
+			annIds_ = loaded_data['val_coco_caps_obj'].getAnnIds(imgIds=image_id)
+			anns = loaded_data['val_coco_caps_obj'].loadAnns(annIds_)
+			img_caps = [ann['caption'] for ann in anns]
+
+			image_caps.append(img_caps[random_caption])
 			image_files.append(image_file)
 
 
@@ -297,7 +351,7 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim,
 		z_noise = np.random.uniform(-1, 1, [batch_size, z_dim])
 
 		return real_images, wrong_images, captions, z_noise, image_files, \
-			   real_classes, wrong_classes
+			   real_classes, wrong_classes, image_caps, image_ids
 
 	if data_set == 'flowers':
 		real_images = np.zeros((batch_size, 128, 128, 3))

@@ -3,12 +3,11 @@ import pylab
 import numpy as np
 import os
 import traceback
-import keras
 import pickle
 import skipthoughts
 
-dataRoot='Data/datasets/'
-dataDir='Data/mscoco'
+dataRoot='Data/datasets/mscoco'
+dataDir='Data/datasets/mscoco'
 dataType='train2014'
 valdataType='val2014'
 
@@ -82,32 +81,35 @@ def prepare_data(coco, mode='train'):
 	imgIds = coco.getImgIds()
 	image_classes = {}
 
-	if not os.path.exists(all_caps_dir):
-		for i, imgid in enumerate(imgIds):
-			if i%100 == 0:
-				print(str(i) + ' Images loaded')
-			annIds = coco.getAnnIds(imgIds=imgid)
-			img_anns = coco.loadAnns(annIds)
-			category_ids = []
-			for i_anns in img_anns:
-				category_ids.append(i_anns['category_id'])
-			category_ids = set(category_ids)
-			category_ids = list(category_ids)
-			icats = coco.loadCats(category_ids)
-			icatnms = [cat['name'] for cat in icats]
-			lbl_k_hot = []
-			for catnm in icatnms:
-				lbl_k_hot.append(one_hot_encode_str_lbl(catnm,target,one_hot_targets))
 
-			lbl_k_hot = np.sum(lbl_k_hot, axis=0)
-			image_classes[imgid] = lbl_k_hot
+	for i, imgid in enumerate(imgIds):
+		if i%100 == 0:
+			print(str(i) + ' Images loaded')
+		annIds = coco.getAnnIds(imgIds=imgid)
+		img_anns = coco.loadAnns(annIds)
+		category_ids = []
+		for i_anns in img_anns:
+			category_ids.append(i_anns['category_id'])
+		category_ids = set(category_ids)
+		category_ids = list(category_ids)
+		icats = coco.loadCats(category_ids)
+		icatnms = [cat['name'] for cat in icats]
+		lbl_k_hot = []
+		for catnm in icatnms:
+			lbl_k_hot.append(one_hot_encode_str_lbl(catnm,target,one_hot_targets))
 
-			annIds_ = coco_caps.getAnnIds(imgIds=imgid)
-			anns = coco_caps.loadAnns(annIds_)
-			for ann in anns :
-				#print(ann['caption'])
-				with open(all_caps_dir, "a") as myfile :
-					myfile.write(ann['caption'].lower() + '\n')
+		lbl_k_hot = np.sum(lbl_k_hot, axis=0)
+		if lbl_k_hot.size == 0:
+			print('maja')
+			lbl_k_hot = np.zeros(80)
+		image_classes[imgid] = lbl_k_hot
+		print('Cls one hot lbl : ' + str(lbl_k_hot.shape))
+		#annIds_ = coco_caps.getAnnIds(imgIds=imgid)
+		#anns = coco_caps.loadAnns(annIds_)
+		#for ann in anns :
+		#	#print(ann['caption'])
+		#	with open(all_caps_dir, "a") as myfile :
+		#		myfile.write(ann['caption'].lower() + '\n')
 
 		if not os.path.exists(os.path.join(dataDir, mode, 'coco_tr_tc.pkl')):
 			fc_pkl_path = (os.path.join(dataDir, mode, 'coco_tr_tc.pkl'))
@@ -123,6 +125,8 @@ def prepare_data(coco, mode='train'):
 			anns = coco_caps.loadAnns(annIds_)
 			img_caps = [ann['caption'] for ann in anns]
 			encoded_captions[imgid] = skipthoughts.encode(model, img_caps)
+			#print(encoded_captions[imgid])
+			#print(encoded_captions[imgid].shape)
 		ec_pkl_path = os.path.join(dataDir, mode, 'coco_tr_tv.pkl')
 		pickle.dump(encoded_captions, open(ec_pkl_path, "wb"))
 

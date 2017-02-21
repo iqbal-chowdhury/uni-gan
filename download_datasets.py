@@ -103,7 +103,7 @@ def download_dataset(data_name):
 
 
 def main():
-    create_data_paths()
+    #create_data_paths()
     # TODO: make configurable via command-line
     #download_dataset('flowers')
     #download_dataset('skipthoughts')
