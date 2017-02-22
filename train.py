@@ -44,6 +44,13 @@ def main():
 	parser.add_argument('--n_classes', type = int, default = 80,
 	                    help = 'Number of classes/class labels')
 
+	parser.add_argument('--attn_time_steps', type = int, default = 50,
+	                    help = 'Number of time steps for attention model')
+
+	parser.add_argument('--attn_word_feat_length', type = int, default = 300,
+	                    help = 'Feature vector size for every word in the '
+	                           'caption')
+
 	parser.add_argument('--data_dir', type=str, default="Data",
 						help='Data Directory')
 
