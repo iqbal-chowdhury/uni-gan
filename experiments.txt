@@ -1,0 +1,11 @@
+experiment_1:
+    machine: 31001
+    script:
+    dataset: mscoco
+    attention: false
+
+experiment_2:
+    machine: 31002
+    script:
+    dataset: flowers
+    attention: false

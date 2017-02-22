@@ -19,7 +19,7 @@ def main():
 	parser.add_argument('--z_dim', type=int, default=100,
 						help='Noise dimension')
 
-	parser.add_argument('--t_dim', type=int, default=256,
+	parser.add_argument('--t_dim', type=int, default=512,
 						help='Text feature dimension')
 
 	parser.add_argument('--batch_size', type=int, default=64,
@@ -38,8 +38,11 @@ def main():
 						help='Dimension of gen untis for for fully connected '
 							 'layer 1024')
 
-	parser.add_argument('--caption_vector_length', type=int, default=128,
+	parser.add_argument('--caption_vector_length', type=int, default=4800,
 						help='Caption Vector Length')
+
+	parser.add_argument('--n_classes', type = int, default = 80,
+	                    help = 'Number of classes/class labels')
 
 	parser.add_argument('--data_dir', type=str, default="Data",
 						help='Data Directory')
@@ -86,7 +89,8 @@ def main():
 
 	datasets_root_dir = join(args.data_dir, 'datasets')
 
-	loaded_data = load_training_data(datasets_root_dir, args.data_set)
+	loaded_data = load_training_data(datasets_root_dir, args.data_set,
+	                                 args.caption_vector_length, args.n_classes)
 	model_options = {
 		'z_dim': args.z_dim,
 		't_dim': args.t_dim,
@@ -130,9 +134,8 @@ def main():
 			real_images, wrong_images, caption_vectors, z_noise, image_files, \
 			real_classes, wrong_classes, image_caps, image_ids  = \
 				get_training_batch(batch_no, args.batch_size, args.image_size,
-									args.z_dim, args.caption_vector_length,
-									'train', datasets_root_dir, args.data_set,
-								   	loaded_data)
+									args.z_dim, 'train', datasets_root_dir,
+                                    args.data_set, loaded_data)
 
 			# DISCR UPDATE
 			check_ts = [checks['d_loss1'], checks['d_loss2'],
@@ -213,36 +216,39 @@ def main():
 				save_for_viz_val(model_val_samples_dir, val_gen, val_image_files, val_image_caps,
 								 val_image_ids, args.image_size, val_viz_cnt)
 
-def load_training_data(data_dir, data_set) :
+def load_training_data(data_dir, data_set, caption_vector_length, n_classes) :
 	if data_set == 'flowers' :
-		flower_captions = pickle.load(
-			open(join(data_dir, 'flowers', 'tr_features_dict.pkl'), "rb"))
+		flower_str_captions = pickle.load(
+			open(join(data_dir, 'flowers', 'flowers_caps.pkl'), "rb"))
 
 		img_classes = pickle.load(
 			open(join(data_dir, 'flowers', 'flower_tc.pkl'), "rb"))
 
-		flower_captions = pickle.load(
-			open(join(data_dir, 'flowers', 'tr_features_dict.pkl'), "rb"))
+		flower_enc_captions = pickle.load(
+			open(join(data_dir, 'flowers', 'flower_tv.pkl'), "rb"))
 		# h1 = h5py.File(join(data_dir, 'flower_tc.hdf5'))
-		img_classes = pickle.load(
-			open(join(data_dir, 'flowers', 'flower_tc.pkl'), "rb"))
+		tr_image_ids = pickle.load(
+			open(join(data_dir, 'flowers', 'train_ids.pkl'), "rb"))
+		val_image_ids = pickle.load(
+			open(join(data_dir, 'flowers', 'val_ids.pkl'), "rb"))
 		
-		n_classes = 102
-		max_caps_len = 4800
+		# n_classes = n_classes
+		max_caps_len = caption_vector_length
 
-		image_list = [key for key in flower_captions]
-		image_list.sort()
-
-		training_image_list = image_list
-		random.shuffle(training_image_list)
+		tr_n_imgs = len(tr_image_ids)
+		val_n_imgs = len(val_image_ids)
 
 		return {
-			'image_list' : training_image_list,
-			'captions' : flower_captions,
-			'data_length' : len(training_image_list),
-			'classes' : img_classes,
-			'n_classes' : n_classes,
-			'max_caps_len' : max_caps_len
+			'image_list'    : tr_image_ids,
+			'captions'      : flower_enc_captions,
+			'data_length'   : tr_n_imgs,
+			'classes'       : img_classes,
+			'n_classes'     : n_classes,
+			'max_caps_len'  : max_caps_len,
+			'val_img_list'  : val_image_ids,
+			'val_captions'  : flower_enc_captions,
+			'val_data_len'  : val_n_imgs,
+			'str_captions'  : flower_str_captions
 		}
 
 	else :
@@ -258,8 +264,8 @@ def load_training_data(data_dir, data_set) :
 			open(os.path.join(data_dir, 'mscoco/val', 'coco_tr_tv.pkl'),
 				 "rb"))
 
-		n_classes = 80
-		max_caps_len = 4800
+		# n_classes = 80
+		max_caps_len = caption_vector_length
 		tr_annFile = '%s/annotations_inst/instances_%s.json' % (
 								join(data_dir, 'mscoco'), 'train2014')
 		tr_annFile_caps = '%s/annotations_caps/captions_%s.json' % (join(data_dir, 'mscoco'), 'train2014')
@@ -362,9 +368,27 @@ def get_val_caps_batch(batch_size, loaded_data, data_set, split, data_dir, z_dim
 			image_files.append(image_file)
 		z_noise = np.random.uniform(-1, 1, [batch_size, z_dim])
 		return captions, z_noise, image_files, image_caps, image_ids
+	elif data_set == 'flowers':
+		captions = np.zeros((batch_size, loaded_data['max_caps_len']))
+		batch_idx = np.random.randint(0, loaded_data['val_data_len'],
+		                              size = batch_size)
+		image_ids = np.take(loaded_data['val_img_list'], batch_idx)
+		image_files = []
+		image_caps = []
+		for idx, image_id in enumerate(image_ids) :
+			image_file = join(data_dir,
+			                  'flowers/jpg/' + image_id)
+			random_caption = random.randint(0, 4)
+			captions[idx, :] = \
+				loaded_data['val_captions'][image_id][random_caption][
+				0 :loaded_data['max_caps_len']]
+			image_caps.append(loaded_data['str_captions']
+			                  [image_id][random_caption])
+			image_files.append(image_file)
+		z_noise = np.random.uniform(-1, 1, [batch_size, z_dim])
+		return captions, z_noise, image_files, image_caps, image_ids
 
-def get_training_batch(batch_no, batch_size, image_size, z_dim,
-                       caption_vector_length, split, data_dir, data_set,
+def get_training_batch(batch_no, batch_size, image_size, z_dim, split, data_dir, data_set,
                        loaded_data = None) :
 	if data_set == 'mscoco' :
 
@@ -431,20 +455,24 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim,
 			   real_classes, wrong_classes, image_caps, image_ids
 
 	if data_set == 'flowers':
-		real_images = np.zeros((batch_size, 128, 128, 3))
-		wrong_images = np.zeros((batch_size, 128, 128, 3))
-		#captions = np.zeros((batch_size, caption_vector_length))
+		real_images = np.zeros((batch_size, image_size, image_size, 3))
+		wrong_images = np.zeros((batch_size, image_size, image_size, 3))
 		captions = np.zeros((batch_size, loaded_data['max_caps_len']))
 		real_classes = np.zeros((batch_size, loaded_data['n_classes']))
 		wrong_classes = np.zeros((batch_size, loaded_data['n_classes']))
 
 		cnt = 0
 		image_files = []
+		image_caps = []
+		image_ids = []
 		for i in range(batch_no * batch_size,
 		               batch_no * batch_size + batch_size) :
 			idx = i % len(loaded_data['image_list'])
 			image_file = join(data_dir,
 			                  'flowers/jpg/' + loaded_data['image_list'][idx])
+
+			image_ids.append(loaded_data['image_list'][idx])
+
 			image_array = image_processing.load_image_array_flowers(image_file,
 			                                                image_size)
 			real_images[cnt, :, :, :] = image_array
@@ -471,11 +499,14 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim,
 				loaded_data['classes'][loaded_data['image_list'][idx]][
 												0 :loaded_data['n_classes']]
 			image_files.append(image_file)
+			image_caps.append(loaded_data['str_captions']
+				                  [loaded_data['image_list'][idx]]
+				                  [random_caption])
 			cnt += 1
 		
 		z_noise = np.random.uniform(-1, 1, [batch_size, z_dim])
 		return real_images, wrong_images, captions, z_noise, image_files, \
-		       real_classes, wrong_classes
+		       real_classes, wrong_classes, image_caps, image_ids
 
 def tf_seq_reshape(batch_size, captions, caps_max_len):
 	# Now we create batch-major vectors from the data selected above.
