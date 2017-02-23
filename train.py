@@ -1,3 +1,5 @@
+import spacy
+nlp = spacy.load('en')
 import tensorflow as tf
 import numpy as np
 import model
@@ -12,8 +14,7 @@ import json
 import os
 import shutil
 from pycocotools.coco import COCO
-import spacy
-nlp = spacy.load('en')
+
 
 
 def main():
@@ -437,8 +438,9 @@ def get_val_caps_batch(batch_size, loaded_data, data_set, split, data_dir,
 					break
 				if word_feats is None :
 					word_feats = [tok.vector]
-				word_feats = np.concatenate((word_feats, tok.vector), axis = 0)
-			pad_len = len(spacy_cap_obj) - attn_time_steps
+				word_feats = np.concatenate((word_feats, [tok.vector]),
+				                            axis = 0)
+			pad_len = attn_time_steps - len(spacy_cap_obj) - 1
 			if pad_len > 0 :
 				pad_vecs = np.zeros((pad_len, attn_word_feat_length))
 				word_feats = np.concatenate((word_feats, pad_vecs), axis = 0)
@@ -483,8 +485,9 @@ def get_val_caps_batch(batch_size, loaded_data, data_set, split, data_dir,
 					break
 				if word_feats is None :
 					word_feats = [tok.vector]
-				word_feats = np.concatenate((word_feats, tok.vector), axis = 0)
-			pad_len = len(spacy_cap_obj) - attn_time_steps
+				word_feats = np.concatenate((word_feats, [tok.vector]),
+				                            axis = 0)
+			pad_len = attn_time_steps - len(spacy_cap_obj) - 1
 			if pad_len > 0 :
 				pad_vecs = np.zeros((pad_len, attn_word_feat_length))
 				word_feats = np.concatenate((word_feats, pad_vecs), axis = 0)

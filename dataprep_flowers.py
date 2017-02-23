@@ -52,9 +52,7 @@ def one_hot_encode_str_lbl(lbl, target, one_hot_targets):
         idx = target.index(lbl)
         return one_hot_targets[idx]
 
-def save_caption_vectors_flowers(data_dir, part='text_c10', dt_range=(1, 103),
-                                 attn_time_steps=50,
-                                 attn_word_feat_length=300) :
+def save_caption_vectors_flowers(data_dir, part='text_c10', dt_range=(1, 103)) :
     import time
 
     img_dir = join(data_dir, 'flowers/jpg')
@@ -122,39 +120,6 @@ def save_caption_vectors_flowers(data_dir, part='text_c10', dt_range=(1, 103),
             print i, len(image_captions), img
             print "Seconds", time.time() - st
 
-    attn_word_feats = {}
-    for i, img in enumerate(image_captions) :
-        st = time.time()
-        img_caps = image_captions[img]
-        e_caps_feats = []
-        for str_cap in img_caps :
-	        unicode_cap_str = str_cap.decode('utf-8')
-	        spacy_cap_obj = nlp(unicode_cap_str)
-	        word_feats = None
-	        for k, tok in enumerate(spacy_cap_obj) :
-		        if k >= attn_time_steps :
-			        break
-		        if word_feats is None :
-			        word_feats = [tok.vector]
-		        word_feats = np.concatenate((word_feats, [tok.vector]),
-		                                    axis = 0)
-
-	        pad_len = attn_time_steps - len(spacy_cap_obj) - 1
-	        # print(pad_len)
-	        if pad_len >= 0 :
-		        pad_vecs = np.zeros((pad_len, attn_word_feat_length))
-		        word_feats = np.concatenate((word_feats, pad_vecs),
-		                                    axis = 0)
-	        # print(word_feats.shape)
-	        e_caps_feats.append(word_feats)
-        # print("len: " + str(len(e_caps_feats)) + " shape: " +
-        #      str(e_caps_feats[0].shape))
-        attn_word_feats[imgid] = e_caps_feats
-        if i % 20 == 0 :
-	        print "Seconds", time.time() - st
-    attn_pkl_path = os.path.join(data_dir, 'flowers', 'flowers_tv_attn.pkl')
-    pickle.dump(attn_word_feats, open(attn_pkl_path, "wb"))
-
     img_ids = image_captions.keys()
 
     random.shuffle(img_ids)
@@ -183,9 +148,7 @@ def main() :
     args = parser.parse_args()
 
     dataset_dir = join(args.data_dir, "datasets")
-    save_caption_vectors_flowers(dataset_dir, part='set_4', dt_range=(1, 103),
-                                 attn_time_steps = 35,
-                                 attn_word_feat_length = 300)
+    save_caption_vectors_flowers(dataset_dir, part='set_4', dt_range=(1, 103))
 
 
 if __name__ == '__main__' :
