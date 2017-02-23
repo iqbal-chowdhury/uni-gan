@@ -23,8 +23,8 @@ model = skipthoughts.load_model()
 coco=COCO(annFile)
 coco_caps=COCO(annFile_caps)
 
-valcoco=COCO(annFile)
-valcoco_caps=COCO(annFile_caps)
+valcoco=COCO(valannFile)
+valcoco_caps=COCO(valannFile_caps)
 
 def one_hot_encode_str_lbl(lbl, target, one_hot_targets):
         '''
@@ -67,31 +67,31 @@ def get_one_hot_targets(target_file_path):
 
 	return target, one_hot_targets, n_target
 
-def prepare_data(coco, mode='train'):
+def prepare_data(coco_obj, coco_caps_obj, mode='train'):
 	all_caps_dir = os.path.join(dataRoot, mode ,'all_captions.txt')
 	target_file_path = os.path.join(dataRoot, mode ,"allclasses.txt")
 	if not os.path.exists(target_file_path):
-		cats = coco.loadCats(coco.getCatIds())
+		cats = coco_obj.loadCats(coco_obj.getCatIds())
 		nms = [cat['name'] for cat in cats]
 		with open(target_file_path, "w") as text_file:
 		    text_file.write('\n'.join(nms))
 
 	target, one_hot_targets, n_target = get_one_hot_targets(target_file_path)
 
-	imgIds = coco.getImgIds()
+	imgIds = coco_obj.getImgIds()
 	image_classes = {}
 
 	for i, imgid in enumerate(imgIds):
 		if i%100 == 0:
 			print(str(i) + ' Images loaded')
-		annIds = coco.getAnnIds(imgIds=imgid)
-		img_anns = coco.loadAnns(annIds)
+		annIds = coco_obj.getAnnIds(imgIds=imgid)
+		img_anns = coco_obj.loadAnns(annIds)
 		category_ids = []
 		for i_anns in img_anns:
 			category_ids.append(i_anns['category_id'])
 		category_ids = set(category_ids)
 		category_ids = list(category_ids)
-		icats = coco.loadCats(category_ids)
+		icats = coco_obj.loadCats(category_ids)
 		icatnms = [cat['name'] for cat in icats]
 		lbl_k_hot = []
 		for catnm in icatnms:
@@ -102,8 +102,8 @@ def prepare_data(coco, mode='train'):
 			lbl_k_hot = np.zeros(80)
 		image_classes[imgid] = lbl_k_hot
 
-		#annIds_ = coco_caps.getAnnIds(imgIds=imgid)
-		#anns = coco_caps.loadAnns(annIds_)
+		#annIds_ = coco_obj_caps.getAnnIds(imgIds=imgid)
+		#anns = coco_obj_caps.loadAnns(annIds_)
 		#for ann in anns :
 		#	#print(ann['caption'])
 		#	with open(all_caps_dir, "a") as myfile :
@@ -119,8 +119,8 @@ def prepare_data(coco, mode='train'):
 		for i, imgid in enumerate(imgIds) :
 			if i % 100 == 0 :
 				print(str(i) + ' Images loaded')
-			annIds_ = coco_caps.getAnnIds(imgIds=imgid)
-			anns = coco_caps.loadAnns(annIds_)
+			annIds_ = coco_caps_obj.getAnnIds(imgIds=imgid)
+			anns = coco_caps_obj.loadAnns(annIds_)
 			img_caps = [ann['caption'] for ann in anns]
 			encoded_captions[imgid] = skipthoughts.encode(model, img_caps)
 			#print(encoded_captions[imgid])
@@ -128,6 +128,6 @@ def prepare_data(coco, mode='train'):
 		ec_pkl_path = os.path.join(dataDir, mode, 'coco_tr_tv.pkl')
 		pickle.dump(encoded_captions, open(ec_pkl_path, "wb"))
 
-prepare_data(coco, mode = "train")
-prepare_data(valcoco, mode = "val")
+#prepare_data(coco, coco_caps, mode = "train")
+prepare_data(valcoco, valcoco_caps, mode = "val")
 
