@@ -12,6 +12,8 @@ import json
 import os
 import shutil
 from pycocotools.coco import COCO
+import spacy
+nlp = spacy.load('en')
 
 
 def main():
@@ -76,6 +78,9 @@ def main():
 	parser.add_argument('--model_name', type=str, default="model_1",
 						help='model_1 or model_2')
 
+	parser.add_argument('--train', type = bool, default = True,
+	                    help = 'True while training and False otherwise')
+
 	args = parser.parse_args()
 
 	model_dir = join(args.data_dir, 'training', args.model_name)
@@ -97,7 +102,8 @@ def main():
 	datasets_root_dir = join(args.data_dir, 'datasets')
 
 	loaded_data = load_training_data(datasets_root_dir, args.data_set,
-	                                 args.caption_vector_length, args.n_classes)
+	                                 args.caption_vector_length,
+	                                 args.n_classes)
 	model_options = {
 		'z_dim': args.z_dim,
 		't_dim': args.t_dim,
@@ -107,7 +113,9 @@ def main():
 		'df_dim': args.df_dim,
 		'gfc_dim': args.gfc_dim,
 		'caption_vector_length': args.caption_vector_length,
-		'n_classes': loaded_data['n_classes']
+		'n_classes': loaded_data['n_classes'],
+		'attn_time_steps' : args.attn_time_steps,
+		'attn_word_feat_length' : args.attn_word_feat_length
 	}
 
 	gan = model.GAN(model_options)
@@ -129,34 +137,48 @@ def main():
 
 	saver = tf.train.Saver()
 	if args.resume_model:
-		print('resuming model from previous checkpoint' + str(tf.train.latest_checkpoint(args.resume_model)))
+		print('resuming model from previous checkpoint' +
+		      str(tf.train.latest_checkpoint(args.resume_model)))
 		saver.restore(sess, tf.train.latest_checkpoint(args.resume_model))
-
-
 
 	for i in range(args.epochs):
 		batch_no = 0
 		while batch_no * args.batch_size < loaded_data['data_length']:
 
 			real_images, wrong_images, caption_vectors, z_noise, image_files, \
-			real_classes, wrong_classes, image_caps, image_ids  = \
-				get_training_batch(batch_no, args.batch_size, args.image_size,
-									args.z_dim, 'train', datasets_root_dir,
-                                    args.data_set, loaded_data)
+			real_classes, wrong_classes, image_caps, image_ids, \
+			captions_words_features  = get_training_batch(batch_no,
+	                                              args.batch_size,
+	                                              args.image_size,
+	                                              args.z_dim,
+	                                              'train',
+	                                              datasets_root_dir,
+	                                              args.data_set,
+	                                              args.attn_time_steps,
+	                                              args.attn_word_feat_length,
+	                                              loaded_data)
 
 			# DISCR UPDATE
 			check_ts = [checks['d_loss1'], checks['d_loss2'],
 							checks['d_loss3']]
+
+			feed = {
+				input_tensors['t_real_image'].name : real_images,
+				input_tensors['t_wrong_image'].name : wrong_images,
+				input_tensors['t_real_caption'].name : caption_vectors,
+				input_tensors['t_z'].name : z_noise,
+				input_tensors['t_real_classes'].name : real_classes,
+				input_tensors['t_wrong_classes'].name : wrong_classes,
+				input_tensors['t_training'].name : args.train
+			}
+
+			for c, d in zip(input_tensors['t_attn_input_seq'],
+			                captions_words_features) :
+				feed[c.name] = d
+
 			_, d_loss, gen, d1, d2, d3 = sess.run(
 				[d_optim, loss['d_loss'], outputs['generator']] + check_ts,
-				feed_dict={
-					input_tensors['t_real_image']: real_images,
-					input_tensors['t_wrong_image']: wrong_images,
-					input_tensors['t_real_caption']: caption_vectors,
-					input_tensors['t_z']: z_noise,
-					input_tensors['t_real_classes']: real_classes,
-					input_tensors['t_wrong_classes']: wrong_classes
-				})
+				feed_dict=feed)
 
 			print "d1", d1
 			print "d2", d2
@@ -164,64 +186,88 @@ def main():
 			print "D", d_loss
 
 			# GEN UPDATE
-			_, g_loss, gen = sess.run(
-				[g_optim, loss['g_loss'], outputs['generator']],
-				feed_dict={
-					input_tensors['t_real_image']: real_images,
-					input_tensors['t_wrong_image']: wrong_images,
-					input_tensors['t_real_caption']: caption_vectors,
-					input_tensors['t_z']: z_noise,
-					input_tensors['t_real_classes']: real_classes,
-					input_tensors['t_wrong_classes']: wrong_classes
-				})
+			_, g_loss, gen, attn_spn = sess.run(
+				[g_optim, loss['g_loss'], outputs['generator'],
+				 checks['attn_span']],
+				feed_dict=feed)
 
 			# GEN UPDATE TWICE, to make sure d_loss does not go to 0
-			_, g_loss, gen = sess.run(
-				[g_optim, loss['g_loss'], outputs['generator']],
-				feed_dict={
-					input_tensors['t_real_image']: real_images,
-					input_tensors['t_wrong_image']: wrong_images,
-					input_tensors['t_real_caption']: caption_vectors,
-					input_tensors['t_z']: z_noise,
-					input_tensors['t_real_classes']: real_classes,
-					input_tensors['t_wrong_classes']: wrong_classes
-				})
+			_, g_loss, gen, attn_spn = sess.run(
+				[g_optim, loss['g_loss'], outputs['generator'],
+				 checks['attn_span']],
+				feed_dict=feed)
 
 			print "LOSSES", d_loss, g_loss, batch_no, i, len(
 				loaded_data['image_list']) / args.batch_size
 			batch_no += 1
 			if (batch_no % args.save_every) == 0:
 				print "Saving Images, Model"
-				save_for_vis(model_samples_dir, real_images, gen, image_files, image_caps,
-							 image_ids, args.image_size, args.z_dim)
-				save_path = saver.save(sess,join(model_chkpnts_dir, "latest_model_{}_temp.ckpt".format(
-										   args.data_set)))
-				val_captions, val_z_noise, val_image_files, val_image_caps, val_image_ids = \
-					get_val_caps_batch(args.batch_size, loaded_data, args.data_set, 'val', datasets_root_dir)
+				save_for_vis(model_samples_dir, real_images, gen, image_files,
+				             image_caps, image_ids, args.image_size, args.z_dim)
+				save_path = saver.save(sess,
+				                       join(model_chkpnts_dir,
+				                            "latest_model_{}_temp.ckpt".format(
+										        args.data_set)))
+
+				val_captions, val_image_files, val_image_caps, val_image_ids, \
+				val_captions_words_features = get_val_caps_batch(args.batch_size,
+		                                             loaded_data,
+		                                             args.data_set,
+		                                             'val',
+		                                             datasets_root_dir,
+		                                             args.attn_time_steps,
+		                                             args.attn_word_feat_length)
 				for val_viz_cnt in range(0, 4):
-					val_gen = sess.run(
-						[outputs['generator']],
-						feed_dict={
-							input_tensors['t_real_caption']: val_captions,
-							input_tensors['t_z']: val_z_noise
-						})
-					save_for_viz_val(model_val_samples_dir, val_gen, val_image_files, val_image_caps,
-									 val_image_ids, args.image_size, val_viz_cnt)
+					val_z_noise = np.random.uniform(-1, 1, [args.batch_size,
+					                                        args.z_dim])
+
+					val_feed = {
+						input_tensors['t_real_caption'].name : val_captions,
+						input_tensors['t_z'].name : val_z_noise,
+						input_tensors['t_training'].name : False
+					}
+					for c, d in zip(input_tensors['t_attn_input_seq'],
+					                val_captions_words_features) :
+						feed[c.name] = d
+					val_gen, val_attn_spn = sess.run(
+						[outputs['generator'], checks['attn_span']],
+						feed_dict=val_feed)
+					save_for_viz_val(model_val_samples_dir, val_gen,
+					                 val_image_files, val_image_caps,
+									 val_image_ids, args.image_size,
+									 val_viz_cnt, val_attn_spn)
 
 		if i % 5 == 0:
-			save_path = saver.save(sess, join(model_chkpnts_dir,"model_after_{}_epoch_{}.ckpt".format(
-				args.data_set, i)))
-			val_captions, val_z_noise, val_image_files, val_image_caps, val_image_ids = \
-				get_val_caps_batch(args.batch_size, loaded_data, args.data_set, 'val', datasets_root_dir)
+			save_path = saver.save(sess,
+			                       join(model_chkpnts_dir,
+			                            "model_after_{}_epoch_{}.ckpt".
+			                                format(args.data_set, i)))
+			val_captions, val_image_files, val_image_caps, val_image_ids, \
+			val_captions_words_features = get_val_caps_batch(args.batch_size,
+		                                             loaded_data,
+		                                             args.data_set,
+		                                             'val',
+		                                             datasets_root_dir,
+		                                             args.attn_time_steps,
+		                                             args.attn_word_feat_length)
 			for val_viz_cnt in range(0, 10):
-				val_gen = sess.run(
-					[outputs['generator']],
-					feed_dict={
-						input_tensors['t_real_caption']: val_captions,
-						input_tensors['t_z']: val_z_noise
-					})
-				save_for_viz_val(model_val_samples_dir, val_gen, val_image_files, val_image_caps,
-								 val_image_ids, args.image_size, val_viz_cnt)
+				val_z_noise = np.random.uniform(-1, 1, [args.batch_size,
+				                                        args.z_dim])
+				val_feed = {
+					input_tensors['t_real_caption'].name : val_captions,
+					input_tensors['t_z'].name : val_z_noise,
+					input_tensors['t_training'].name : False
+				}
+				for c, d in zip(input_tensors['t_attn_input_seq'],
+				                val_captions_words_features) :
+					feed[c.name] = d
+				val_gen, val_attn_spn = sess.run(
+					[outputs['generator'], checks['attn_span']],
+					feed_dict=val_feed)
+				save_for_viz_val(model_val_samples_dir, val_gen,
+				                 val_image_files, val_image_caps,
+								 val_image_ids, args.image_size,
+								 val_viz_cnt, val_attn_spn)
 
 def load_training_data(data_dir, data_set, caption_vector_length, n_classes) :
 	if data_set == 'flowers' :
@@ -275,11 +321,13 @@ def load_training_data(data_dir, data_set, caption_vector_length, n_classes) :
 		max_caps_len = caption_vector_length
 		tr_annFile = '%s/annotations_inst/instances_%s.json' % (
 								join(data_dir, 'mscoco'), 'train2014')
-		tr_annFile_caps = '%s/annotations_caps/captions_%s.json' % (join(data_dir, 'mscoco'), 'train2014')
+		tr_annFile_caps = '%s/annotations_caps/captions_%s.json' % \
+		                  (join(data_dir, 'mscoco'), 'train2014')
 
 		val_annFile = '%s/annotations_inst/instances_%s.json' % (
 			join(data_dir, 'mscoco'), 'val2014')
-		val_annFile_caps = '%s/annotations_caps/captions_%s.json' % (join(data_dir, 'mscoco'), 'val2014')
+		val_annFile_caps = '%s/annotations_caps/captions_%s.json' % \
+		                   (join(data_dir, 'mscoco'), 'val2014')
 
 		val_caps_coco = COCO(val_annFile)
 		val_coco = COCO(val_annFile_caps)
@@ -308,7 +356,8 @@ def load_training_data(data_dir, data_set, caption_vector_length, n_classes) :
 			'val_data_len' : val_n_imgs
 		}
 
-def save_for_viz_val(data_dir, generated_images, image_files, image_caps, image_ids, image_size, id):
+def save_for_viz_val(data_dir, generated_images, image_files, image_caps,
+                     image_ids, image_size, id, val_attn_spn):
 	shutil.rmtree(data_dir)
 	os.makedirs(data_dir)
 	for i in range(0, generated_images.shape[0]) :
@@ -317,7 +366,8 @@ def save_for_viz_val(data_dir, generated_images, image_files, image_caps, image_
 			os.makedirs(image_dir)
 
 		real_image_path = join(image_dir,
-							   '{}_{}.jpg'.format(image_ids[i], image_files[i].split('/')[-1]))
+							   '{}_{}.jpg'.format(image_ids[i],
+							                      image_files[i].split('/')[-1]))
 		if not os.path.exists(image_dir):
 			real_images_255 = image_processing.load_image_array(image_files[i],
 															image_size,
@@ -327,12 +377,15 @@ def save_for_viz_val(data_dir, generated_images, image_files, image_caps, image_
 		caps_dir = join(image_dir, "caps.txt")
 		if not os.path.exists(caps_dir):
 			with open(caps_dir, "w") as text_file:
-				text_file.write(image_caps[i])
+				text_file.write(image_caps[i]+"\n")
+				text_file.write("\t".join(val_attn_spn[i]))
 
 		fake_images_255 = (generated_images[i, :, :, :])
-		scipy.misc.imsave(join(image_dir, 'fake_image_{}.jpg'.format(id)), fake_images_255)
+		scipy.misc.imsave(join(image_dir, 'fake_image_{}.jpg'.format(id)),
+		                  fake_images_255)
 
-def save_for_vis(data_dir, real_images, generated_images, image_files, image_caps, image_ids, image_size) :
+def save_for_vis(data_dir, real_images, generated_images, image_files,
+                 image_caps, image_ids, image_size) :
 	shutil.rmtree(data_dir)
 	os.makedirs(data_dir)
 
@@ -354,9 +407,12 @@ def save_for_vis(data_dir, real_images, generated_images, image_files, image_cap
 	with open(join(data_dir, "ids.txt"), "w") as text_file:
 		text_file.write(str_image_ids)
 
-def get_val_caps_batch(batch_size, loaded_data, data_set, split, data_dir, z_dim):
+def get_val_caps_batch(batch_size, loaded_data, data_set, split, data_dir,
+                       attn_time_steps, attn_word_feat_length):
 	if data_set == 'mscoco':
 		captions = np.zeros((batch_size, loaded_data['max_caps_len']))
+		captions_words_features = np.zeros((batch_size, attn_time_steps,
+		                                    attn_word_feat_length))
 		batch_idx = np.random.randint(0, loaded_data['val_data_len'],
 									  size=batch_size)
 		image_ids = np.take(loaded_data['val_img_list'], batch_idx)
@@ -366,17 +422,46 @@ def get_val_caps_batch(batch_size, loaded_data, data_set, split, data_dir, z_dim
 			image_file = join(data_dir, 'mscoco/%s2014/COCO_%s2014_%.12d.jpg' % (
 				split, split, image_id))
 			random_caption = random.randint(0, 4)
-			captions[idx, :] = \
-				loaded_data['val_captions'][image_id][random_caption][0:loaded_data['max_caps_len']]
+			captions[idx, :] = loaded_data['val_captions'][image_id][
+			                   random_caption][0:loaded_data['max_caps_len']]
 			annIds_ = loaded_data['val_coco_caps_obj'].getAnnIds(imgIds=image_id)
 			anns = loaded_data['val_coco_caps_obj'].loadAnns(annIds_)
 			img_caps = [ann['caption'] for ann in anns]
+			str_cap = img_caps[random_caption]
+
+			unicode_cap_str = str_cap.decode('utf-8')
+			spacy_cap_obj = nlp(unicode_cap_str)
+			word_feats = None
+			for i, tok in enumerate(spacy_cap_obj) :
+				if i >= attn_time_steps :
+					break
+				if word_feats is None :
+					word_feats = [tok.vector]
+				word_feats = np.concatenate((word_feats, tok.vector), axis = 0)
+			pad_len = len(spacy_cap_obj) - attn_time_steps
+			if pad_len > 0 :
+				pad_vecs = np.zeros((pad_len, attn_word_feat_length))
+				word_feats = np.concatenate((word_feats, pad_vecs), axis = 0)
+
+			captions_words_features[idx, :, :] = word_feats
 			image_caps.append(img_caps[random_caption])
 			image_files.append(image_file)
-		z_noise = np.random.uniform(-1, 1, [batch_size, z_dim])
-		return captions, z_noise, image_files, image_caps, image_ids
+
+		captions_words_features = np.transpose(captions_words_features,
+		                                       (1, 0, 2))
+		captions_words_features = np.split(captions_words_features,
+		                                   attn_time_steps)
+
+		for i in range(0, len(captions_words_features)) :
+			captions_words_features[i] = np.squeeze(captions_words_features[i])
+
+		#z_noise = np.random.uniform(-1, 1, [batch_size, z_dim])
+		return captions, image_files, image_caps, image_ids,\
+		       captions_words_features
 	elif data_set == 'flowers':
 		captions = np.zeros((batch_size, loaded_data['max_caps_len']))
+		captions_words_features = np.zeros((batch_size, attn_time_steps,
+		                                    attn_word_feat_length))
 		batch_idx = np.random.randint(0, loaded_data['val_data_len'],
 		                              size = batch_size)
 		image_ids = np.take(loaded_data['val_img_list'], batch_idx)
@@ -389,14 +474,40 @@ def get_val_caps_batch(batch_size, loaded_data, data_set, split, data_dir, z_dim
 			captions[idx, :] = \
 				loaded_data['val_captions'][image_id][random_caption][
 				0 :loaded_data['max_caps_len']]
+			str_cap = loaded_data['str_captions'][image_id][random_caption]
+			unicode_cap_str = str_cap.decode('utf-8')
+			spacy_cap_obj = nlp(unicode_cap_str)
+			word_feats = None
+			for i, tok in enumerate(spacy_cap_obj) :
+				if i >= attn_time_steps :
+					break
+				if word_feats is None :
+					word_feats = [tok.vector]
+				word_feats = np.concatenate((word_feats, tok.vector), axis = 0)
+			pad_len = len(spacy_cap_obj) - attn_time_steps
+			if pad_len > 0 :
+				pad_vecs = np.zeros((pad_len, attn_word_feat_length))
+				word_feats = np.concatenate((word_feats, pad_vecs), axis = 0)
+
+			captions_words_features[idx, :, :] = word_feats
 			image_caps.append(loaded_data['str_captions']
 			                  [image_id][random_caption])
 			image_files.append(image_file)
-		z_noise = np.random.uniform(-1, 1, [batch_size, z_dim])
-		return captions, z_noise, image_files, image_caps, image_ids
 
-def get_training_batch(batch_no, batch_size, image_size, z_dim, split, data_dir, data_set,
-                       loaded_data = None) :
+		captions_words_features = np.transpose(captions_words_features,
+		                                       (1, 0, 2))
+		captions_words_features = np.split(captions_words_features,
+		                                   attn_time_steps)
+		for i in range(0, len(captions_words_features)) :
+			captions_words_features[i] = np.squeeze(captions_words_features[i])
+
+		#z_noise = np.random.uniform(-1, 1, [batch_size, z_dim])
+		return captions, image_files, image_caps, image_ids,\
+		       captions_words_features
+
+def get_training_batch(batch_no, batch_size, image_size, z_dim, split,
+                       data_dir, data_set, attn_time_steps,
+                       attn_word_feat_length, loaded_data = None) :
 	if data_set == 'mscoco' :
 
 		real_images = np.zeros((batch_size, image_size , image_size, 3))
@@ -404,7 +515,8 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split, data_dir,
 		captions = np.zeros((batch_size, loaded_data['max_caps_len']))
 		real_classes = np.zeros((batch_size, loaded_data['n_classes']))
 		wrong_classes = np.zeros((batch_size, loaded_data['n_classes']))
-
+		captions_words_features = np.zeros((batch_size, attn_time_steps,
+		                                    attn_word_feat_length))
 		img_range = range(batch_no * batch_size,
 						  batch_no * batch_size + batch_size)
 		#batch_idx = np.random.randint(0, loaded_data['data_length'],
@@ -440,10 +552,33 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split, data_dir,
 			annIds_ = loaded_data['tr_coco_caps_obj'].getAnnIds(imgIds=image_id)
 			anns = loaded_data['tr_coco_caps_obj'].loadAnns(annIds_)
 			img_caps = [ann['caption'] for ann in anns]
+			str_cap = img_caps[random_caption]
 
-			image_caps.append(img_caps[random_caption])
+			unicode_cap_str = str_cap.decode('utf-8')
+			spacy_cap_obj = nlp(unicode_cap_str)
+			word_feats = None
+			for i, tok in enumerate(spacy_cap_obj):
+				if i >= attn_time_steps:
+					break
+				if word_feats is None:
+					word_feats = [tok.vector]
+				word_feats = np.concatenate((word_feats, tok.vector), axis=0)
+			pad_len = len(spacy_cap_obj) - attn_time_steps
+			if pad_len > 0:
+				pad_vecs = np.zeros((pad_len, attn_word_feat_length))
+				word_feats = np.concatenate((word_feats, pad_vecs), axis = 0)
+
+			captions_words_features[idx, :, :] = word_feats
+
+			image_caps.append(str_cap)
 			image_files.append(image_file)
 
+		captions_words_features = np.transpose(captions_words_features,
+			                                       (1, 0, 2))
+		captions_words_features = np.split(captions_words_features,
+		                                   attn_time_steps)
+		for i in range(0, len(captions_words_features)) :
+			captions_words_features[i] = np.squeeze(captions_words_features[i])
 
 		# TODO>> As of Now, wrong images are just shuffled real images.
 		first_image = real_images[0, :, :, :]
@@ -459,7 +594,8 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split, data_dir,
 		z_noise = np.random.uniform(-1, 1, [batch_size, z_dim])
 
 		return real_images, wrong_images, captions, z_noise, image_files, \
-			   real_classes, wrong_classes, image_caps, image_ids
+			   real_classes, wrong_classes, image_caps, image_ids,\
+			   captions_words_features
 
 	if data_set == 'flowers':
 		real_images = np.zeros((batch_size, image_size, image_size, 3))
@@ -467,6 +603,8 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split, data_dir,
 		captions = np.zeros((batch_size, loaded_data['max_caps_len']))
 		real_classes = np.zeros((batch_size, loaded_data['n_classes']))
 		wrong_classes = np.zeros((batch_size, loaded_data['n_classes']))
+		captions_words_features = np.zeros((batch_size, attn_time_steps,
+		                                    attn_word_feat_length))
 
 		cnt = 0
 		image_files = []
@@ -505,15 +643,39 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split, data_dir,
 			real_classes[cnt, :] = \
 				loaded_data['classes'][loaded_data['image_list'][idx]][
 												0 :loaded_data['n_classes']]
+			str_cap = loaded_data['str_captions'][loaded_data['image_list']
+								[idx]][random_caption]
+			unicode_cap_str = str_cap.decode('utf-8')
+			spacy_cap_obj = nlp(unicode_cap_str)
+			word_feats = None
+			for i, tok in enumerate(spacy_cap_obj) :
+				if i >= attn_time_steps :
+					break
+				if word_feats is None :
+					word_feats = [tok.vector]
+				word_feats = np.concatenate((word_feats, tok.vector), axis = 0)
+			pad_len = len(spacy_cap_obj) - attn_time_steps
+			if pad_len > 0 :
+				pad_vecs = np.zeros((pad_len, attn_word_feat_length))
+				word_feats = np.concatenate((word_feats, pad_vecs), axis = 0)
+
+			captions_words_features[idx, :, :] = word_feats
+
 			image_files.append(image_file)
-			image_caps.append(loaded_data['str_captions']
-				                  [loaded_data['image_list'][idx]]
-				                  [random_caption])
+			image_caps.append(str_cap)
 			cnt += 1
-		
+
+		captions_words_features = np.transpose(captions_words_features,
+		                                       (1, 0, 2))
+		captions_words_features = np.split(captions_words_features,
+		                                   attn_time_steps)
+		for i in range(0, len(captions_words_features)) :
+			captions_words_features[i] = np.squeeze(captions_words_features[i])
+
 		z_noise = np.random.uniform(-1, 1, [batch_size, z_dim])
 		return real_images, wrong_images, captions, z_noise, image_files, \
-		       real_classes, wrong_classes, image_caps, image_ids
+		       real_classes, wrong_classes, image_caps, image_ids,\
+		       captions_words_features
 
 def tf_seq_reshape(batch_size, captions, caps_max_len):
 	# Now we create batch-major vectors from the data selected above.
