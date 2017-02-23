@@ -546,11 +546,11 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split,
 			captions[idx, :] = \
 				loaded_data['captions'][image_id][random_caption][0:loaded_data['max_caps_len']]
 
-			if type(loaded_data['classes'][image_id]) == np.ndarray:
-				real_classes[idx, :] = \
-					loaded_data['classes'][image_id][0:loaded_data['n_classes']]
-			else:
-				print('case')
+			#if type(loaded_data['classes'][image_id]) == np.ndarray:
+			real_classes[idx, :] = \
+				loaded_data['classes'][image_id][0:loaded_data['n_classes']]
+			#else:
+			#	print('case')
 
 			annIds_ = loaded_data['tr_coco_caps_obj'].getAnnIds(imgIds=image_id)
 			anns = loaded_data['tr_coco_caps_obj'].loadAnns(annIds_)
@@ -565,8 +565,8 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split,
 					break
 				if word_feats is None:
 					word_feats = [tok.vector]
-				word_feats = np.concatenate((word_feats, tok.vector), axis=0)
-			pad_len = len(spacy_cap_obj) - attn_time_steps
+				word_feats = np.concatenate((word_feats, [tok.vector]), axis=0)
+			pad_len = attn_time_steps - len(spacy_cap_obj) - 1
 			if pad_len > 0:
 				pad_vecs = np.zeros((pad_len, attn_word_feat_length))
 				word_feats = np.concatenate((word_feats, pad_vecs), axis = 0)
@@ -656,8 +656,9 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split,
 					break
 				if word_feats is None :
 					word_feats = [tok.vector]
-				word_feats = np.concatenate((word_feats, tok.vector), axis = 0)
-			pad_len = len(spacy_cap_obj) - attn_time_steps
+				word_feats = np.concatenate((word_feats, [tok.vector]),
+				                            axis = 0)
+			pad_len = attn_time_steps - len(spacy_cap_obj) - 1
 			if pad_len > 0 :
 				pad_vecs = np.zeros((pad_len, attn_word_feat_length))
 				word_feats = np.concatenate((word_feats, pad_vecs), axis = 0)
