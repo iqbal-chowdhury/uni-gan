@@ -46,7 +46,7 @@ def main():
 	parser.add_argument('--n_classes', type = int, default = 80,
 	                    help = 'Number of classes/class labels')
 
-	parser.add_argument('--attn_time_steps', type = int, default = 50,
+	parser.add_argument('--attn_time_steps', type = int, default = 35,
 	                    help = 'Number of time steps for attention model')
 
 	parser.add_argument('--attn_word_feat_length', type = int, default = 300,

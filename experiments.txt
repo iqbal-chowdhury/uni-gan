@@ -1,11 +1,11 @@
 experiment_1:
     machine: 31001
-    script:
+    script: python train.py --t_dim=256 --image_size=128 --data_set=mscoco --model_name=model_1_ds_mscoco_stage_1_128 --train
     dataset: mscoco
-    attention: false
+    attention: true
 
 experiment_2:
-    machine: 31002
+    machine: 30901
     script:
     dataset: flowers
     attention: false

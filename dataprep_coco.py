@@ -4,7 +4,7 @@ import numpy as np
 import os
 import traceback
 import pickle
-import skipthoughts
+#import skipthoughts
 import spacy
 nlp = spacy.load('en')
 
@@ -19,7 +19,7 @@ annFile_caps = '%s/annotations_caps/captions_%s.json'%(dataDir,dataType)
 valannFile='%s/annotations_inst/instances_%s.json'%(dataDir,valdataType)
 valannFile_caps = '%s/annotations_caps/captions_%s.json'%(dataDir,valdataType)
 
-model = skipthoughts.load_model()
+#model = skipthoughts.load_model()
 
 
 coco=COCO(annFile)
@@ -132,11 +132,11 @@ def prepare_data(coco_obj, coco_caps_obj, mode='train', attn_time_steps=50,
 		pickle.dump(encoded_captions, open(ec_pkl_path, "wb"))
 
 	attn_word_feats = {}
-
+	print("attn features are being extracted")
 	if not os.path.exists(os.path.join(dataDir, mode, 'coco_tr_tv_attn.pkl')):
 		for i, imgid in enumerate(imgIds) :
 			if i % 100 == 0 :
-				print(str(i) + ' Images loaded')
+				print(str(i) + ' Images loaded for ' + mode)
 			annIds_ = coco_caps_obj.getAnnIds(imgIds=imgid)
 			anns = coco_caps_obj.loadAnns(annIds_)
 			img_caps = [ann['caption'] for ann in anns]
@@ -145,27 +145,32 @@ def prepare_data(coco_obj, coco_caps_obj, mode='train', attn_time_steps=50,
 				unicode_cap_str = str_cap.decode('utf-8')
 				spacy_cap_obj = nlp(unicode_cap_str)
 				word_feats = None
-				for i, tok in enumerate(spacy_cap_obj) :
-					if i >= attn_time_steps :
+				for k, tok in enumerate(spacy_cap_obj) :
+					if k >= attn_time_steps :
 						break
 					if word_feats is None :
 						word_feats = [tok.vector]
-					word_feats = np.concatenate((word_feats, tok.vector),
+					word_feats = np.concatenate((word_feats, [tok.vector]),
 					                            axis = 0)
-				pad_len = len(spacy_cap_obj) - attn_time_steps
-				if pad_len > 0 :
+
+				pad_len = attn_time_steps - len(spacy_cap_obj) -1
+				#print(pad_len)
+				if pad_len >= 0 :
 					pad_vecs = np.zeros((pad_len, attn_word_feat_length))
 					word_feats = np.concatenate((word_feats, pad_vecs),
 					                            axis = 0)
+				#print(word_feats.shape)
 				e_caps_feats.append(word_feats)
+			#print("len: " + str(len(e_caps_feats)) + " shape: " +
+			#      str(e_caps_feats[0].shape))
 			attn_word_feats[imgid] = e_caps_feats
 			#print(encoded_captions[imgid])
 			#print(encoded_captions[imgid].shape)
-		ec_pkl_path = os.path.join(dataDir, mode, 'coco_tr_tv_attn.pkl')
-		pickle.dump(attn_word_feats, open(ec_pkl_path, "wb"))
+		attn_pkl_path = os.path.join(dataDir, mode, 'coco_tr_tv_attn.pkl')
+		pickle.dump(attn_word_feats, open(attn_pkl_path, "wb"))
 
-#prepare_data(coco, coco_caps, mode = "train", attn_time_steps = 35,
-#             attn_word_feat_length = 300)
+prepare_data(coco, coco_caps, mode = "train", attn_time_steps = 35,
+             attn_word_feat_length = 300)
 prepare_data(valcoco, valcoco_caps, mode = "val", attn_time_steps = 35,
              attn_word_feat_length = 300)
 
