@@ -52,14 +52,13 @@ def one_hot_encode_str_lbl(lbl, target, one_hot_targets):
         idx = target.index(lbl)
         return one_hot_targets[idx]
 
-def save_caption_vectors_flowers(data_dir, vocab_size, recreate_vocab=True,
-                                 part='text_c10', dt_range=(1, 103)) :
+def save_caption_vectors_flowers(data_dir, part='text_c10', dt_range=(1, 103)) :
     import time
 
     img_dir = join(data_dir, 'flowers/jpg')
     #dataset_root_dir = join(data_dir, 'flowers')
     all_caps_dir = join(data_dir, 'flowers/all_captions.txt')
-    vocab_path = os.path.join(data_dir, "flowers/vocab%d.txt" % vocab_size)
+    #vocab_path = os.path.join(data_dir, "flowers/vocab%d.txt" % vocab_size)
     target_file_path = os.path.join(data_dir, "flowers/allclasses_"+ part +".txt")
     caption_dir = join(data_dir, 'flowers/' + part)
     image_files = [f for f in os.listdir(img_dir) if 'jpg' in f]
@@ -73,8 +72,8 @@ def save_caption_vectors_flowers(data_dir, vocab_size, recreate_vocab=True,
     class_names = []
     img_ids = []
 
-    if recreate_vocab and os.path.exists(all_caps_dir):
-        os.remove(all_caps_dir)
+    #if recreate_vocab and os.path.exists(all_caps_dir):
+    #    os.remove(all_caps_dir)
 
     target, one_hot_targets, n_target = get_one_hot_targets(target_file_path)
 
@@ -99,9 +98,9 @@ def save_caption_vectors_flowers(data_dir, vocab_size, recreate_vocab=True,
             with open(join(class_dir, cap_file)) as f :
                 str_captions = f.read()
                 captions = str_captions.split('\n')
-                if recreate_vocab :
-                    with open(all_caps_dir, "a") as myfile :
-                        myfile.write(str_captions)
+                #if recreate_vocab :
+                #    with open(all_caps_dir, "a") as myfile :
+                #        myfile.write(str_captions)
             img_file = cap_file[0 :11] + ".jpg"
 
             # 5 captions per image
