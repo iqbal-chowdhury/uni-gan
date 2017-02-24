@@ -109,9 +109,9 @@ def prepare_data(coco_obj, coco_caps_obj, mode='train'):
 		#	with open(all_caps_dir, "a") as myfile :
 		#		myfile.write(ann['caption'].lower() + '\n')
 
-		if not os.path.exists(os.path.join(dataDir, mode, 'coco_tr_tc.pkl')):
-			fc_pkl_path = (os.path.join(dataDir, mode, 'coco_tr_tc.pkl'))
-			pickle.dump(image_classes, open(fc_pkl_path, "wb"))
+	if not os.path.exists(os.path.join(dataDir, mode, 'coco_tr_tc.pkl')):
+		fc_pkl_path = (os.path.join(dataDir, mode, 'coco_tr_tc.pkl'))
+		pickle.dump(image_classes, open(fc_pkl_path, "wb"))
 
 	encoded_captions = {}
 
@@ -129,6 +129,6 @@ def prepare_data(coco_obj, coco_caps_obj, mode='train'):
 		pickle.dump(encoded_captions, open(ec_pkl_path, "wb"))
 
 
-#prepare_data(coco, coco_caps, mode = "train")
+prepare_data(coco, coco_caps, mode = "train")
 prepare_data(valcoco, valcoco_caps, mode = "val")
 

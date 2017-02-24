@@ -545,12 +545,13 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split,
 
 			captions[idx, :] = \
 				loaded_data['captions'][image_id][random_caption][0:loaded_data['max_caps_len']]
-
-			#if type(loaded_data['classes'][image_id]) == np.ndarray:
-			real_classes[idx, :] = \
-				loaded_data['classes'][image_id][0:loaded_data['n_classes']]
-			#else:
-			#	print('case')
+			#print('i: ' + str(idx) + '\tcaps vec: ' + str(loaded_data['classes'][image_id]))
+			if type(loaded_data['classes'][image_id]) == np.ndarray:
+				real_classes[idx, :] = \
+					loaded_data['classes'][image_id][0:loaded_data['n_classes']]
+			else:
+				real_classes[idx, :] = np.zeros(loaded_data['n_classes'])
+				#print('case')
 
 			annIds_ = loaded_data['tr_coco_caps_obj'].getAnnIds(imgIds=image_id)
 			anns = loaded_data['tr_coco_caps_obj'].loadAnns(annIds_)
@@ -560,8 +561,9 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split,
 			unicode_cap_str = str_cap.decode('utf-8')
 			spacy_cap_obj = nlp(unicode_cap_str)
 			word_feats = None
+			print(idx)
 			for i, tok in enumerate(spacy_cap_obj):
-				if i >= attn_time_steps:
+				if i > attn_time_steps:
 					break
 				if word_feats is None:
 					word_feats = [tok.vector]

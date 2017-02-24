@@ -171,7 +171,7 @@ class GAN :
 			'disc_real_image_logits'    : disc_real_image_logits,
 			'disc_wrong_image_logits'   : disc_wrong_image,
 			'disc_fake_image_logits'    : disc_fake_image_logits,
-			'attn_spn'                  : attn_spn
+			'attn_span'                  : attn_spn
 		}
 
 		return input_tensors, variables, loss, outputs, checks
