@@ -320,13 +320,14 @@ class GAN :
 		ui = ops.attention(decoder_output, seq_outputs, output_size,
 		                   time_steps, name = "a_attention")
 		#print(len(ui))
-		ui = tf.transpose(ui, [1, 0, 2])
-		#print(ui)
-		ai = tf.nn.softmax(ui)
-		#print(ai)
-		seq_outputs = tf.transpose(seq_outputs, [1, 0, 2])
-		#print(seq_outputs)
-		#print(tf.mul(seq_outputs, ai))
-		d_dash = tf.reduce_sum(tf.mul(seq_outputs, ai), axis=1)
-		#print(d_dash)
-		return d_dash, ai
+		with tf.variable_scope('a_attention'):
+			ui = tf.transpose(ui, [1, 0, 2])
+			#print(ui)
+			ai = tf.nn.softmax(ui)
+			#print(ai)
+			seq_outputs = tf.transpose(seq_outputs, [1, 0, 2])
+			#print(seq_outputs)
+			#print(tf.mul(seq_outputs, ai))
+			d_dash = tf.reduce_sum(tf.mul(seq_outputs, ai), axis=1)
+			#print(d_dash)
+			return d_dash, ai

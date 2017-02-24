@@ -26,15 +26,16 @@ def load_image_array_flowers(image_file, image_size):
 	return img_resized.astype('float32')
 
 def load_image_array(image_file, image_size,
-					 image_id, data_dir='Data/mscoco/train2014'):
+					 image_id, data_dir='Data/datasets/mscoco/train2014',
+					 mode='train'):
 	img = None
 	if os.path.exists(image_file):
 		#print('found' + image_file)
 		img = skimage.io.imread(image_file)
 	else:
-		#print('notfound' + image_file)
+		print('notfound' + image_file)
 		img = skimage.io.imread('http://mscoco.org/images/%d' % (image_id))
-		img_path = os.path.join(data_dir, 'COCO_%s2014_%.12d.jpg' % ( 'train',
+		img_path = os.path.join(data_dir, 'COCO_%s2014_%.12d.jpg' % ( mode,
 																	  image_id))
 		skimage.io.imsave(img_path, img)
 
@@ -49,8 +50,8 @@ def load_image_array(image_file, image_size,
 	img_resized = skimage.transform.resize(img, (image_size, image_size))
 
 	# FLIP HORIZONTAL WIRH A PROBABILITY 0.5
-	if random.random() > 0.5:
-		img_resized = np.fliplr(img_resized)
+	#if random.random() > 0.5:
+	#	img_resized = np.fliplr(img_resized)
 	
 	
 	return img_resized.astype('float32')
