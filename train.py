@@ -204,12 +204,10 @@ def main():
 
 			print "LOSSES", d_loss, g_loss, batch_no, i, len(
 				loaded_data['image_list']) / args.batch_size
+			print attn_spn
 			batch_no += 1
 			if (batch_no % args.save_every) == 0:
 				print "Saving Images, Model"
-
-				#save_for_vis(data_dir, real_images, generated_images, image_files,
-                #image_caps, image_ids, image_size)
 
 				save_for_vis(model_samples_dir, real_images, gen, image_files,
 				             image_caps, image_ids, args.image_size)
@@ -235,7 +233,7 @@ def main():
 					val_feed = {
 						input_tensors['t_real_caption'].name : val_captions,
 						input_tensors['t_z'].name : val_z_noise,
-						input_tensors['t_training'].name : False
+						input_tensors['t_training'].name : True
 					}
 					for c, d in zip(input_tensors['t_attn_input_seq'],
 					                val_captions_words_features) :
@@ -269,7 +267,7 @@ def main():
 				val_feed = {
 					input_tensors['t_real_caption'].name : val_captions,
 					input_tensors['t_z'].name : val_z_noise,
-					input_tensors['t_training'].name : False
+					input_tensors['t_training'].name : True
 				}
 				for c, d in zip(input_tensors['t_attn_input_seq'],
 				                val_captions_words_features) :
@@ -393,7 +391,7 @@ def save_for_viz_val(data_dir, generated_images, image_files, image_caps,
 		if not os.path.exists(caps_dir):
 			with open(caps_dir, "w") as text_file:
 				text_file.write(image_caps[i]+"\n")
-				text_file.write("\t".join(["{:.9f}".format(val_attn_) for
+				text_file.write("\t".join(["{}".format(val_attn_) for
 										   val_attn_ in val_attn_spn[i]]))
 
 		fake_images_255 = (generated_images[i, :, :, :])

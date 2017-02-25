@@ -68,7 +68,8 @@ class GAN :
 
 		t_training = tf.placeholder(tf.bool, name='training')
 
-		fake_image, attn_spn = self.generator(t_z, t_real_caption, t_training,
+		fake_image, attn_spn, attn_sum = self.generator(t_z, t_real_caption,
+												 t_training,
 		                                      t_attn_input_seq,
 		                                      self.options[
 			                                      'attn_word_feat_length'],
@@ -171,7 +172,8 @@ class GAN :
 			'disc_real_image_logits'    : disc_real_image_logits,
 			'disc_wrong_image_logits'   : disc_wrong_image,
 			'disc_fake_image_logits'    : disc_fake_image_logits,
-			'attn_span'                  : attn_spn
+			'attn_span'                 : attn_spn,
+			'attn_sum'					: attn_sum
 		}
 
 		return input_tensors, variables, loss, outputs, checks
@@ -220,44 +222,7 @@ class GAN :
 
 		h4 = ops.deconv2d(h3, [self.options['batch_size'], s, s, 3],
 		                  name = 'g_h4')
-		return (tf.tanh(h4) / 2. + 0.5), attn_span
-
-	# GENERATOR IMPLEMENTATION based on :
-	# https://github.com/carpedm20/DCGAN-tensorflow/blob/master/model.py
-	def seq_encoder(self, t_real_caption, embedding_size, state_size, e_layers) :
-
-		lstm_fw_cell = tf.nn.rnn_cell.BasicLSTMCell(state_size,
-		                                            forget_bias = 1.0)
-		#lstm_fw_cell = tf.nn.rnn_cell.DropoutWrapper(lstm_fw_cell,
-		#                              output_keep_prob = e_dropout)
-		lstm_fw_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_fw_cell] * e_layers)
-		# Backward direction cell
-		lstm_bw_cell = tf.nn.rnn_cell.BasicLSTMCell(state_size,
-		                                            forget_bias = 1.0)
-		#lstm_bw_cell = tf.nn.rnn_cell.DropoutWrapper(lstm_bw_cell,
-		#                              output_keep_prob = e_dropout)
-		lstm_bw_cell = tf.nn.rnn_cell.MultiRNNCell([lstm_bw_cell] * e_layers)
-		# Get lstm cell output
-		outputs, _, _ = tf.nn.bidirectional_rnn(lstm_fw_cell, lstm_bw_cell,
-		                                            t_real_caption,
-		                                            dtype = tf.float32,
-		                                        scope = 'e_brnn')
-		#print(len(outputs))
-		#print(outputs[0].get_shape())
-		output_size = outputs[0].get_shape()[1]
-		time_steps = len(outputs)
-		# try weight sharing later too
-		concat_outs = tf.concat(1, outputs)
-		#print(concat_outs)
-		# add a
-		# constant
-		# initializer later
-		caption_embeddings_logits = ops.linear(concat_outs, embedding_size,
-		                                       'e_embeddings')
-		#print(caption_embeddings_logits)
-		preds = tf.sigmoid(caption_embeddings_logits)
-
-		return preds, outputs, output_size, time_steps
+		return (tf.tanh(h4) / 2. + 0.5), attn_span, attn_sum
 
 
 	# DISCRIMINATOR IMPLEMENTATION based on :
@@ -318,12 +283,13 @@ class GAN :
 
 	def attention(self, decoder_output, seq_outputs, output_size, time_steps) :
 		ui = ops.attention(decoder_output, seq_outputs, output_size,
-		                   time_steps, name = "a_attention")
+		                   time_steps, name = "g_a_attention")
 		#print(len(ui))
-		with tf.variable_scope('a_attention'):
+		with tf.variable_scope('g_a_attention'):
 			ui = tf.transpose(ui, [1, 0, 2])
+			ui = tf.squeeze(ui)
 			#print(ui)
-			ai = tf.nn.softmax(ui)
+			ai = tf.nn.softmax(ui,  dim=1)
 			#print(ai)
 			seq_outputs = tf.transpose(seq_outputs, [1, 0, 2])
 			#print(seq_outputs)
