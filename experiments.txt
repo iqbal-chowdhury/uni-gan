@@ -6,6 +6,16 @@ experiment_1:
 
 experiment_2:
     machine: 30901
-    script:
+    script: python train.py --t_dim=100 --image_size=128 --data_set=flowers --model_name=model_3_ds_flowers_stage_1_128 --train=True --resume_model=True --attn_time_steps=20 --z_dim=100
+    n_classes: 80
+    epochs: 200
+    dataset: flowers
+    attention: false
+
+experiment_3:
+    machine: 30901
+    script: python train.py --t_dim=100 --image_size=128 --data_set=flowers --model_name=model_3_ds_flowers_stage_1_128 --train=True --resume_model=True --attn_time_steps=20 --z_dim=100 --n_classes=102 --epochs=600
+    n_classes: 102
+    epochs: 600
     dataset: flowers
     attention: false

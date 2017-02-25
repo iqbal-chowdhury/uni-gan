@@ -148,7 +148,8 @@ def main():
 
 	for i in range(args.epochs):
 		batch_no = 0
-		while batch_no * args.batch_size < loaded_data['data_length']:
+		while batch_no * args.batch_size + batch_size < \
+				loaded_data['data_length']:
 
 			real_images, wrong_images, caption_vectors, z_noise, image_files, \
 			real_classes, wrong_classes, image_caps, image_ids, \

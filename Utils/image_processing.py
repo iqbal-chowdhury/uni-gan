@@ -50,8 +50,8 @@ def load_image_array(image_file, image_size,
 	img_resized = skimage.transform.resize(img, (image_size, image_size))
 
 	# FLIP HORIZONTAL WIRH A PROBABILITY 0.5
-	#if random.random() > 0.5:
-	#	img_resized = np.fliplr(img_resized)
+	if random.random() > 0.5:
+		img_resized = np.fliplr(img_resized)
 	
 	
 	return img_resized.astype('float32')
