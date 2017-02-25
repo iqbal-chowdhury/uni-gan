@@ -204,7 +204,7 @@ def main():
 
 			print "LOSSES", d_loss, g_loss, batch_no, i, len(
 				loaded_data['image_list']) / args.batch_size
-			print attn_spn
+			#print attn_spn
 			batch_no += 1
 			if (batch_no % args.save_every) == 0:
 				print "Saving Images, Model"
