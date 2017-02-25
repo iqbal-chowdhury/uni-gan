@@ -123,7 +123,7 @@ def save_caption_vectors_flowers(data_dir, part='text_c10', dt_range=(1, 103)) :
     img_ids = image_captions.keys()
 
     random.shuffle(img_ids)
-    n_train_instances = int(img_ids * 0.9)
+    n_train_instances = int(len(img_ids) * 0.9)
     tr_image_ids = img_ids[0 :n_train_instances]
     val_image_ids = img_ids[n_train_instances : -1]
 
