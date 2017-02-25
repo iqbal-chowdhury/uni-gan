@@ -683,7 +683,7 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split,
 				pad_vecs = np.zeros((pad_len, attn_word_feat_length))
 				word_feats = np.concatenate((word_feats, pad_vecs), axis = 0)
 
-			captions_words_features[idx, :, :] = word_feats
+			captions_words_features[cnt, :, :] = word_feats
 
 			image_files.append(image_file)
 			image_caps.append(str_cap)
