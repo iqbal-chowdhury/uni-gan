@@ -287,7 +287,7 @@ class GAN :
 		#print(len(ui))
 		with tf.variable_scope('g_a_attention'):
 			ui = tf.transpose(ui, [1, 0, 2])
-			ui = tf.squeeze(ui)
+			#ui = tf.squeeze(ui)
 			#print(ui)
 			ai = tf.nn.softmax(ui,  dim=1)
 			#print(ai)
