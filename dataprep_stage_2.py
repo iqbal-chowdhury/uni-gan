@@ -299,6 +299,8 @@ def load_training_data(data_dir, data_set, caption_vector_length, n_classes):
 def save_generated_images(data_dir, generated_images, image_caps,
 					 image_id, caps_id, attn_spn, max_images):
 	image_dir = join(data_dir, str(image_id), str(caps_id))
+	if not os.path.exists(image_dir):
+		os.makedirs(image_dir)
 	caps_dir = join(image_dir, "caps.txt")
 	if not os.path.exists(caps_dir):
 		with open(caps_dir, "w") as text_file:
@@ -306,10 +308,6 @@ def save_generated_images(data_dir, generated_images, image_caps,
 			text_file.write("\t".join(["{}".format(val_attn_) for
 									   val_attn_ in attn_spn[i]]))
 	for i in range(0, max_images):
-
-		if not os.path.exists(image_dir):
-			os.makedirs(image_dir)
-
 		with open(caps_dir, "a") as text_file:
 			text_file.write("\t".join(["{}".format(val_attn_) for
 									   val_attn_ in attn_spn[i]]))
