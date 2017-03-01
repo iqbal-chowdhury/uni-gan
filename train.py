@@ -136,7 +136,7 @@ def main():
 	sess = tf.InteractiveSession()
 	tf.initialize_all_variables().run()
 
-	saver = tf.train.Saver()
+	saver = tf.train.Saver(max_to_keep=10000)
 	if args.resume_model:
 		print('resuming model from previous checkpoint' +
 		      str(tf.train.latest_checkpoint(model_chkpnts_dir)))
@@ -247,9 +247,12 @@ def main():
 									 val_image_ids, args.image_size,
 									 val_viz_cnt, val_attn_spn)
 
-		if i % 5 == 0:
+		if i % 1 == 0:
+			epoch_dir = join(model_chkpnts_dir, str(i))
+			if not os.path.exists(epoch_dir):
+				os.makedirs(epoch_dir)
 			save_path = saver.save(sess,
-			                       join(model_chkpnts_dir,
+			                       join(epoch_dir,
 			                            "model_after_{}_epoch_{}.ckpt".
 			                                format(args.data_set, i)))
 			val_captions, val_image_files, val_image_caps, val_image_ids, \

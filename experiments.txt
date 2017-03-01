@@ -19,3 +19,32 @@ experiment_3:
     epochs: 600
     dataset: flowers
     attention: false
+
+
+experiment_5:
+    machine: 30901
+    script: python train.py --t_dim=100 --image_size=128 --data_set=flowers --model_name=model_6_ds_flowers_stage_1_128 --train=True --resume_model=True --attn_time_steps=20 --z_dim=150 --n_classes=102 --epochs=400
+    n_classes: 102
+    epochs: 400
+    dataset: flowers
+    attention: false
+
+
+
+# model with double attention
+experiment_6:
+    machine: 30901
+    script: python train.py --t_dim=128 --image_size=128 --data_set=flowers --model_name=model_6_ds_flowers_stage_1_128 --train=True --resume_model=True --attn_time_steps=20 --z_dim=100 --n_classes=102 --epochs=400 --save_every=100
+    n_classes: 102
+    epochs: 400
+    dataset: flowers
+    attention: false
+
+# model with single attention
+experiment_8:
+    machine: 30901
+    script: python train.py --t_dim=128 --image_size=128 --data_set=flowers --model_name=model_6_ds_flowers_stage_1_128 --train=True --resume_model=True --attn_time_steps=20 --z_dim=100 --n_classes=102 --epochs=400 --save_every=100
+    n_classes: 102
+    epochs: 400
+    dataset: flowers
+    attention: false

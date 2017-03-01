@@ -214,18 +214,18 @@ class GAN :
 		                       self.options['gf_dim'] * 2], name = 'g_h2')
 		h2 = tf.nn.relu(slim.batch_norm(h2, is_training = t_training,
 		                                scope="g_bn2"))
-		h2_flat = tf.reshape(h2, [self.options['batch_size'], -1])
-		h2_squeezed = ops.linear(h2_flat, output_size, 'g_h2_lin')
-		attn_sum_2, attn_span_2 = self.attention(h2_squeezed, seq_outputs,
-		                                        output_size, time_steps, 
-							reuse=True)
-		tf.get_variable_scope()._reuse = False
-		attn_sum_2 = tf.expand_dims(attn_sum_2, 1)
-		attn_sum_2 = tf.expand_dims(attn_sum_2, 2)
-		tiled_attn_2 = tf.tile(attn_sum_2, [1, s4, s4, 1], name = 'g_tiled_attention_2')
-		h2_concat = tf.concat(3, [h2, tiled_attn_2], name = 'h2_concat')
+		#h2_flat = tf.reshape(h2, [self.options['batch_size'], -1])
+		#h2_squeezed = ops.linear(h2_flat, output_size, 'g_h2_lin')
+		#attn_sum_2, attn_span_2 = self.attention(h2_squeezed, seq_outputs,
+		#                                        output_size, time_steps, 
+		#						reuse=True)
+		#tf.get_variable_scope()._reuse = False
+		#attn_sum_2 = tf.expand_dims(attn_sum_2, 1)
+		#attn_sum_2 = tf.expand_dims(attn_sum_2, 2)
+		#tiled_attn_2 = tf.tile(attn_sum_2, [1, s4, s4, 1], name = 'g_tiled_attention_2')
+		#h2_concat = tf.concat(3, [h2, tiled_attn_2], name = 'h2_concat')
 		
-		h3 = ops.deconv2d(h2_concat, [self.options['batch_size'], s2, s2,
+		h3 = ops.deconv2d(h2, [self.options['batch_size'], s2, s2,
 		                       self.options['gf_dim'] * 1], name = 'g_h3')
 		h3 = tf.nn.relu(slim.batch_norm(h3, is_training = t_training,
 		                                scope="g_bn3"))
