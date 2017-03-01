@@ -305,8 +305,7 @@ def save_generated_images(data_dir, generated_images, image_caps,
 	if not os.path.exists(caps_dir):
 		with open(caps_dir, "w") as text_file:
 			text_file.write(image_caps + "\n")
-			text_file.write("\t".join(["{}".format(val_attn_) for
-									   val_attn_ in attn_spn[i]]))
+
 	for i in range(0, max_images):
 		with open(caps_dir, "a") as text_file:
 			text_file.write("\t".join(["{}".format(val_attn_) for
