@@ -160,12 +160,12 @@ def main():
 				feed[c.name] = d
 
 			# GEN UPDATE
-			g_loss, gen, attn_spn = sess.run(
-				[loss['g_loss'], outputs['generator'],
+			gen, attn_spn = sess.run(
+				[outputs['generator'],
 				 checks['attn_span']],
 				feed_dict=feed)
 
-			print "LOSSES", g_loss, i, len(loaded_data['image_list'])
+			print "LOSSES",i , len(loaded_data['image_list'])
 			print("Saving Images for image: " + str(image_id) +
 				  "\nCaption: " + str_cap)
 			max_images = min(args.batch_size, args.images_per_caption)
