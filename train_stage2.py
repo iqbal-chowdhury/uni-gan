@@ -3,7 +3,7 @@ import spacy
 nlp = spacy.load('en')
 import tensorflow as tf
 import numpy as np
-import model
+import model_stage2
 import argparse
 import pickle
 from os.path import join
@@ -19,7 +19,7 @@ from pycocotools.coco import COCO
 
 def main():
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--z_dim', type=int, default=100,
+	parser.add_argument('--z_dim', type=int, default=128,
 						help='Noise dimension')
 
 	parser.add_argument('--t_dim', type=int, default=512,
@@ -28,7 +28,7 @@ def main():
 	parser.add_argument('--batch_size', type=int, default=64,
 						help='Batch Size')
 
-	parser.add_argument('--image_size', type=int, default=64,
+	parser.add_argument('--image_size', type=int, default=256,
 						help='Image Size a, a x a')
 
 	parser.add_argument('--gf_dim', type=int, default=64,
@@ -101,6 +101,10 @@ def main():
 		os.makedirs(model_val_samples_dir)
 
 	datasets_root_dir = join(args.data_dir, 'datasets')
+	stage_1_tr_dir = join(args.data_dir, 'training', args.model_name,
+						  'stage_1_ds', 'train')
+	stage_1_val_dir = join(args.data_dir, 'training', args.model_name,
+						  'stage_1_ds', 'val')
 
 	loaded_data = load_training_data(datasets_root_dir, args.data_set,
 									 args.caption_vector_length,
@@ -119,7 +123,7 @@ def main():
 		'attn_word_feat_length': args.attn_word_feat_length
 	}
 
-	gan = model.GAN(model_options)
+	gan = model_stage2.GAN(model_options)
 	input_tensors, variables, loss, outputs, checks = gan.build_model()
 
 	d_optim = tf.train.AdamOptimizer(args.learning_rate,
@@ -159,6 +163,7 @@ def main():
 														 args.z_dim,
 														 'train',
 														 datasets_root_dir,
+														 stage_1_tr_dir,
 														 args.data_set,
 														 args.attn_time_steps,
 														 args.attn_word_feat_length,
@@ -218,57 +223,18 @@ def main():
 												args.data_set)))
 
 				val_captions, val_image_files, val_image_caps, val_image_ids, \
-				val_captions_words_features = get_val_caps_batch(
-					args.batch_size,
-					loaded_data,
-					args.data_set,
-					'val',
-					datasets_root_dir,
-					args.attn_time_steps,
-					args.attn_word_feat_length)
+				val_captions_words_features, val_z_noise = get_val_caps_batch(
+												args.batch_size,
+												loaded_data,
+												args.data_set,
+												'val',
+												datasets_root_dir,
+												stage_1_val_dir,
+												args.attn_time_steps,
+												args.attn_word_feat_length,
+												args.z_dim)
 				shutil.rmtree(model_val_samples_dir)
 				os.makedirs(model_val_samples_dir)
-				for val_viz_cnt in range(0, 4):
-					val_z_noise = np.random.uniform(-1, 1, [args.batch_size,
-															args.z_dim])
-
-					val_feed = {
-						input_tensors['t_real_caption'].name: val_captions,
-						input_tensors['t_z'].name: val_z_noise,
-						input_tensors['t_training'].name: True
-					}
-					for c, d in zip(input_tensors['t_attn_input_seq'],
-									val_captions_words_features):
-						val_feed[c.name] = d
-					val_gen, val_attn_spn = sess.run(
-						[outputs['generator'], checks['attn_span']],
-						feed_dict=val_feed)
-					save_for_viz_val(model_val_samples_dir, val_gen,
-									 val_image_files, val_image_caps,
-									 val_image_ids, args.image_size,
-									 val_viz_cnt, val_attn_spn)
-
-		if i % 1 == 0:
-			epoch_dir = join(model_chkpnts_dir, str(i))
-			if not os.path.exists(epoch_dir):
-				os.makedirs(epoch_dir)
-			save_path = saver.save(sess,
-								   join(epoch_dir,
-										"model_after_{}_epoch_{}.ckpt".
-										format(args.data_set, i)))
-			val_captions, val_image_files, val_image_caps, val_image_ids, \
-			val_captions_words_features = get_val_caps_batch(args.batch_size,
-															 loaded_data,
-															 args.data_set,
-															 'val',
-															 datasets_root_dir,
-															 args.attn_time_steps,
-															 args.attn_word_feat_length)
-			shutil.rmtree(model_val_samples_dir)
-			os.makedirs(model_val_samples_dir)
-			for val_viz_cnt in range(0, 10):
-				val_z_noise = np.random.uniform(-1, 1, [args.batch_size,
-														args.z_dim])
 				val_feed = {
 					input_tensors['t_real_caption'].name: val_captions,
 					input_tensors['t_z'].name: val_z_noise,
@@ -283,7 +249,44 @@ def main():
 				save_for_viz_val(model_val_samples_dir, val_gen,
 								 val_image_files, val_image_caps,
 								 val_image_ids, args.image_size,
-								 val_viz_cnt, val_attn_spn)
+								 0, val_attn_spn)
+
+		if i % 1 == 0:
+			epoch_dir = join(model_chkpnts_dir, str(i))
+			if not os.path.exists(epoch_dir):
+				os.makedirs(epoch_dir)
+			save_path = saver.save(sess,
+								   join(epoch_dir,
+										"model_after_{}_epoch_{}.ckpt".
+										format(args.data_set, i)))
+			val_captions, val_image_files, val_image_caps, val_image_ids, \
+			val_captions_words_features, val_z_noise = get_val_caps_batch(
+													args.batch_size,
+													 loaded_data,
+													 args.data_set,
+													 'val',
+													 datasets_root_dir,
+													 stage_1_val_dir,
+													 args.attn_time_steps,
+													 args.attn_word_feat_length,
+													args.z_dim)
+			shutil.rmtree(model_val_samples_dir)
+			os.makedirs(model_val_samples_dir)
+			val_feed = {
+				input_tensors['t_real_caption'].name: val_captions,
+				input_tensors['t_z'].name: val_z_noise,
+				input_tensors['t_training'].name: True
+			}
+			for c, d in zip(input_tensors['t_attn_input_seq'],
+							val_captions_words_features):
+				val_feed[c.name] = d
+			val_gen, val_attn_spn = sess.run(
+				[outputs['generator'], checks['attn_span']],
+				feed_dict=val_feed)
+			save_for_viz_val(model_val_samples_dir, val_gen,
+							 val_image_files, val_image_caps,
+							 val_image_ids, args.image_size,
+							 0, val_attn_spn)
 
 
 def load_training_data(data_dir, data_set, caption_vector_length, n_classes):
@@ -431,11 +434,13 @@ def save_for_vis(data_dir, real_images, generated_images, image_files,
 
 
 def get_val_caps_batch(batch_size, loaded_data, data_set, split, data_dir,
-					   attn_time_steps, attn_word_feat_length):
+					   stage_1_dir, attn_time_steps, attn_word_feat_length,
+					   z_dim):
 	if data_set == 'mscoco':
 		captions = np.zeros((batch_size, loaded_data['max_caps_len']))
 		captions_words_features = np.zeros((batch_size, attn_time_steps,
 											attn_word_feat_length))
+		z_noise = np.zeros((batch_size, z_dim, z_dim, 3))
 		batch_idx = np.random.randint(0, loaded_data['val_data_len'],
 									  size=batch_size)
 		image_ids = np.take(loaded_data['val_img_list'], batch_idx)
@@ -472,6 +477,13 @@ def get_val_caps_batch(batch_size, loaded_data, data_set, split, data_dir,
 				word_feats = np.concatenate((word_feats, pad_vecs), axis=0)
 
 			captions_words_features[idx, :, :] = word_feats
+			rand_noise_image = random.randint(0, 30)
+			noise_img_path = join(stage_1_dir, str(image_id),
+								  str(random_caption), str(rand_noise_image)
+								  + '.jpg')
+			z_noise[idx, :, :, :] = image_processing.load_image_array(
+															noise_img_path,
+															z_dim)
 			image_caps.append(img_caps[random_caption])
 			image_files.append(image_file)
 
@@ -485,11 +497,12 @@ def get_val_caps_batch(batch_size, loaded_data, data_set, split, data_dir,
 
 		# z_noise = np.random.uniform(-1, 1, [batch_size, z_dim])
 		return captions, image_files, image_caps, image_ids, \
-			   captions_words_features
+			   captions_words_features, z_noise
 	elif data_set == 'flowers':
 		captions = np.zeros((batch_size, loaded_data['max_caps_len']))
 		captions_words_features = np.zeros((batch_size, attn_time_steps,
 											attn_word_feat_length))
+		z_noise = np.zeros((batch_size, z_dim, z_dim, 3))
 		batch_idx = np.random.randint(0, loaded_data['val_data_len'],
 									  size=batch_size)
 		image_ids = np.take(loaded_data['val_img_list'], batch_idx)
@@ -520,6 +533,14 @@ def get_val_caps_batch(batch_size, loaded_data, data_set, split, data_dir,
 				word_feats = np.concatenate((word_feats, pad_vecs), axis=0)
 
 			captions_words_features[idx, :, :] = word_feats
+			rand_noise_image = random.randint(0, 30)
+			noise_img_path = join(stage_1_dir,
+								  str(image_id), str(random_caption),
+								  str(rand_noise_image)
+								  + '.jpg')
+			z_noise[idx, :, :, :] = image_processing.load_image_array_flowers(
+														noise_img_path,
+														z_dim)
 			image_caps.append(loaded_data['str_captions']
 							  [image_id][random_caption])
 			image_files.append(image_file)
@@ -533,11 +554,11 @@ def get_val_caps_batch(batch_size, loaded_data, data_set, split, data_dir,
 
 		# z_noise = np.random.uniform(-1, 1, [batch_size, z_dim])
 		return captions, image_files, image_caps, image_ids, \
-			   captions_words_features
+			   captions_words_features, z_noise
 
 
 def get_training_batch(batch_no, batch_size, image_size, z_dim, split,
-					   data_dir, data_set, attn_time_steps,
+					   data_dir, stage_1_dir,  data_set, attn_time_steps,
 					   attn_word_feat_length, loaded_data=None):
 	if data_set == 'mscoco':
 
@@ -548,6 +569,7 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split,
 		wrong_classes = np.zeros((batch_size, loaded_data['n_classes']))
 		captions_words_features = np.zeros((batch_size, attn_time_steps,
 											attn_word_feat_length))
+		z_noise = np.zeros((batch_size, z_dim, z_dim, 3))
 		img_range = range(batch_no * batch_size,
 						  batch_no * batch_size + batch_size)
 		# batch_idx = np.random.randint(0, loaded_data['data_length'],
@@ -606,6 +628,13 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split,
 			# print(idx,word_feats.shape, len(spacy_cap_obj))
 			captions_words_features[idx, :, :] = word_feats
 
+			rand_noise_image = random.randint(0, 30)
+			noise_img_path = join(stage_1_dir, str(image_id),
+								  str(random_caption), str(rand_noise_image)
+								  + '.jpg')
+			z_noise[idx, :, :, :] = image_processing.load_image_array(noise_img_path,
+																z_dim)
+
 			image_caps.append(str_cap)
 			image_files.append(image_file)
 
@@ -627,7 +656,7 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split,
 				wrong_images[i, :, :, :] = first_image
 				wrong_classes[i, :] = first_class
 
-		z_noise = np.random.uniform(-1, 1, [batch_size, z_dim])
+
 
 		return real_images, wrong_images, captions, z_noise, image_files, \
 			   real_classes, wrong_classes, image_caps, image_ids, \
@@ -641,7 +670,7 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split,
 		wrong_classes = np.zeros((batch_size, loaded_data['n_classes']))
 		captions_words_features = np.zeros((batch_size, attn_time_steps,
 											attn_word_feat_length))
-
+		z_noise = np.zeros((batch_size, z_dim, z_dim, 3))
 		cnt = 0
 		image_files = []
 		image_caps = []
@@ -701,7 +730,14 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split,
 				word_feats = np.concatenate((word_feats, pad_vecs), axis=0)
 
 			captions_words_features[cnt, :, :] = word_feats
-
+			rand_noise_image = random.randint(0, 30)
+			noise_img_path = join(stage_1_dir,
+								  str(loaded_data['image_list'][idx]),
+								  str(random_caption), str(rand_noise_image)
+								  + '.jpg')
+			z_noise[cnt, :, :, :] = image_processing.load_image_array_flowers(
+																noise_img_path,
+																z_dim)
 			image_files.append(image_file)
 			image_caps.append(str_cap)
 			cnt += 1
@@ -713,7 +749,7 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split,
 		for i in range(0, len(captions_words_features)):
 			captions_words_features[i] = np.squeeze(captions_words_features[i])
 
-		z_noise = np.random.uniform(-1, 1, [batch_size, z_dim])
+
 		return real_images, wrong_images, captions, z_noise, image_files, \
 			   real_classes, wrong_classes, image_caps, image_ids, \
 			   captions_words_features
