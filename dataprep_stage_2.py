@@ -136,7 +136,7 @@ def main():
 			print('Successfully loaded model from ')
 		else:
 			print('Could not load checkpoints')
-
+	random.shuffle(loaded_data['image_list'])
 	print('Generate caption images for training data')
 	for i, image_id in enumerate(loaded_data['image_list']):
 		for caps_id in range(5):
@@ -172,6 +172,7 @@ def main():
 			save_generated_images(model_stage_1_ds_tr, gen, str_cap, image_id, caps_id,
 							 attn_spn, max_images)
 
+	random.shuffle(loaded_data['val_img_list'])
 	print('Generate caption images for testing data')
 	for i, image_id in enumerate(loaded_data['val_img_list']):
 		for caps_id in range(5):
@@ -301,18 +302,25 @@ def save_generated_images(data_dir, generated_images, image_caps,
 	image_dir = join(data_dir, str(image_id), str(caps_id))
 	if not os.path.exists(image_dir):
 		os.makedirs(image_dir)
+	collection_dir = join(data_dir, 'collection')
+	if not os.path.exists(collection_dir):
+		os.makedirs(collection_dir)
 	caps_dir = join(image_dir, "caps.txt")
 	if not os.path.exists(caps_dir):
 		with open(caps_dir, "w") as text_file:
 			text_file.write(image_caps + "\n")
 
 	for i in range(0, max_images):
+
 		with open(caps_dir, "a") as text_file:
 			text_file.write("\t".join(["{}".format(val_attn_) for
 									   val_attn_ in attn_spn[i]]))
 			text_file.write("\n")
 
 		fake_image_255 = (generated_images[i, :, :, :])
+		if i == 0:
+			scipy.misc.imsave(join(collection_dir, '{}.jpg'.format(image_id)),
+							  fake_image_255)
 		scipy.misc.imsave(join(image_dir, '{}.jpg'.format(i)),
 						  	fake_image_255)
 

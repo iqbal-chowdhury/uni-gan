@@ -27,24 +27,46 @@ experiment_5:
     n_classes: 102
     epochs: 400
     dataset: flowers
-    attention: false
+    attention: true
 
 
 
 # model with double attention
 experiment_6:
     machine: 30901
-    script: python train.py --t_dim=128 --image_size=128 --data_set=flowers --model_name=model_6_ds_flowers_stage_1_128 --train=True --resume_model=True --attn_time_steps=20 --z_dim=100 --n_classes=102 --epochs=400 --save_every=100
+    script: python train.py --t_dim=128 --image_size=128 --data_set=flowers --model_name=model_6_ds_flowers_stage_1_128 --train=True --resume_model=True --attn_time_steps=20 --z_dim=100 --n_classes=102 --epochs=300 --save_every=100 &
+    n_classes: 102
+    epochs: 400
+    dataset: flowers
+    attention: true
+    dataprep_script: python dataprep_stage_2.py --t_dim=128 --image_size=128 --data_set=flowers --model_name=model_6_ds_flowers_stage_1_128 --train=True --resume_model=True --attn_time_steps=20 --z_dim=100 --n_classes=102 --images_per_caption=30 --checkpoints_dir=Data/training/model_6_ds_flowers_stage_1_128/checkpoints/250/ &
+
+
+
+
+# model with single attention
+experiment_8:
+    machine: 30901
+    script: python train.py --t_dim=100 --image_size=128 --data_set=flowers --model_name=model_6_ds_flowers_stage_1_128 --train=True --resume_model=True --attn_time_steps=20 --z_dim=100 --n_classes=102 --epochs=400 --save_every=100
     n_classes: 102
     epochs: 400
     dataset: flowers
     attention: false
 
+
 # model with single attention
-experiment_8:
+# model with
+experiment_12:
     machine: 30901
-    script: python train.py --t_dim=128 --image_size=128 --data_set=flowers --model_name=model_6_ds_flowers_stage_1_128 --train=True --resume_model=True --attn_time_steps=20 --z_dim=100 --n_classes=102 --epochs=400 --save_every=100
+    script: python train.py --t_dim=256 --image_size=128 --data_set=flowers
+    --model_name=model_12_ds_flowers_stage_1_128 --train=True
+    --resume_model=True --attn_time_steps=20 --z_dim=100 --n_classes=102
+    --epochs=400 --save_every=50 --caption_vector_length=2400 &
     n_classes: 102
     epochs: 400
     dataset: flowers
     attention: false
+
+
+python train.py --t_dim=100 --image_size=128 --data_set=flowers --model_name=model_13_ds_flowers_stage_1_128 --train=True --resume_model=True --attn_time_steps=20 --z_dim=100 --n_classes=102 --epochs=400 --save_every=30 --caption_vector_length=4800 &
+python dataprep_stage_2.py --t_dim=100 --image_size=128 --data_set=flowers --model_name=model_13_ds_flowers_stage_1_128 --train=True --resume_model=True --attn_time_steps=20 --z_dim=100 --n_classes=102 --images_per_caption=30 --caption_vector_length=4800 --checkpoints_dir=Data/training/model_13_ds_flowers_stage_1_128/checkpoints/150/

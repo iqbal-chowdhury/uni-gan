@@ -136,8 +136,7 @@ class GAN :
 			print(v)
 
 		d_vars = [var for var in t_vars if 'd_' in var.name]
-		g_vars = [var for var in t_vars if 'g_' in var.name or
-		                                    'a_' in var.name]
+		g_vars = [var for var in t_vars if 'g_' in var.name]
 
 		input_tensors = {
 			't_real_image' : t_real_image,
@@ -207,10 +206,11 @@ class GAN :
 		                                        output_size, time_steps)
 		attn_sum = tf.expand_dims(attn_sum, 1)
 		attn_sum = tf.expand_dims(attn_sum, 2)
-		tiled_attn = tf.tile(attn_sum, [1, s8, s8, 1], name = 'g_tiled_attention_1')
+		tiled_attn = tf.tile(attn_sum, [1, s8, s8, 1], name =
+		 'g_tiled_attention_1')
 		h1_concat = tf.concat(3, [h1, tiled_attn], name = 'h1_concat')
 
-		h2 = ops.deconv2d(h1_concat, [self.options['batch_size'], s4, s4,
+		h2 = ops.deconv2d(h1, [self.options['batch_size'], s4, s4,
 		                       self.options['gf_dim'] * 2], name = 'g_h2')
 		h2 = tf.nn.relu(slim.batch_norm(h2, is_training = t_training,
 		                                scope="g_bn2"))
@@ -279,6 +279,7 @@ class GAN :
 		h3_concat = tf.concat(3, [h3, tiled_embeddings], name = 'h3_concat')
 		h3_new = ops.lrelu(slim.batch_norm(ops.conv2d(h3_concat,
 												self.options['df_dim'] * 8,
+													  1, 1, 1, 1,
 												name = 'd_h3_conv_new'),
 		                                reuse=reuse,
 		                                is_training = t_training,
