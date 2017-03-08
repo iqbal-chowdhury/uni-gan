@@ -17,6 +17,7 @@ from pycocotools.coco import COCO
 
 
 
+
 def main():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--z_dim', type=int, default=100,
@@ -182,7 +183,7 @@ def main():
 			                captions_words_features) :
 				feed[c.name] = d
 
-			_, d_loss, gen, d1, d2, d3 = sess.run(
+			_, d_loss, gen, d1, d2, d3= sess.run(
 				[d_optim, loss['d_loss'], outputs['generator']] + check_ts,
 				feed_dict=feed)
 

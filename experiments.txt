@@ -70,3 +70,19 @@ experiment_12:
 
 python train.py --t_dim=100 --image_size=128 --data_set=flowers --model_name=model_13_ds_flowers_stage_1_128 --train=True --resume_model=True --attn_time_steps=20 --z_dim=100 --n_classes=102 --epochs=400 --save_every=30 --caption_vector_length=4800 &
 python dataprep_stage_2.py --t_dim=100 --image_size=128 --data_set=flowers --model_name=model_13_ds_flowers_stage_1_128 --train=True --resume_model=True --attn_time_steps=20 --z_dim=100 --n_classes=102 --images_per_caption=30 --caption_vector_length=4800 --checkpoints_dir=Data/training/model_13_ds_flowers_stage_1_128/checkpoints/150/
+
+
+
+python train.py --t_dim=100 --image_size=128 --data_set=flowers --model_name=model_14_ds_flowers_stage_1_128 --train=True --resume_model=True --attn_time_steps=20 --z_dim=100 --n_classes=102 --epochs=400 --save_every=20 --caption_vector_length=4800 --batch_size=128 &
+
+python dataprep_stage_2.py --t_dim=100 --image_size=128 --data_set=flowers --model_name=model_14_ds_flowers_stage_1_128 --train=True --resume_model=True --attn_time_steps=20 --z_dim=100 --n_classes=102 --images_per_caption=30 --caption_vector_length=4800 --checkpoints_dir=Data/training/model_14_ds_flowers_stage_1_128/checkpoints/399/
+
+
+
+##########################
+stage2
+
+python train_stage2.py --t_dim=100 --image_size=256 --data_set=flowers --model_name=model_14_ds_flowers_stage_1_128 --train=True --resume_model=True --attn_time_steps=20 --z_dim=128 --n_classes=102 --epochs=500 --save_every=50 --caption_vector_length=4800 --batch_size=64 --gf_dim=32 --df_dim=32 &
+
+#####
+data_prep

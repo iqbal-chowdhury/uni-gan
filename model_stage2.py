@@ -48,12 +48,6 @@ class GAN :
 		                      self.options['caption_vector_length']],
 		                                name='real_captions')
 
-		t_attn_input_seq = [tf.placeholder('float32',
-		                                 [self.options['batch_size'],
-		                                  self.options['attn_word_feat_length']],
-		                                 name = 'attn_caption_input' + str(i))
-		                  for i in range(self.options['attn_time_steps'])]
-
 		t_z = tf.placeholder('float32',
 		                     [self.options['batch_size'],
 		                      self.options['z_dim'], self.options['z_dim'], 3],
@@ -69,13 +63,8 @@ class GAN :
 
 		t_training = tf.placeholder(tf.bool, name='training')
 
-		fake_image, attn_spn, attn_sum = self.generator(t_z, t_real_caption,
-												 t_training,
-		                                      t_attn_input_seq,
-		                                      self.options[
-			                                      'attn_word_feat_length'],
-		                                      self.options[
-			                                      'attn_time_steps'])
+		fake_image = self.generator(t_z, t_real_caption,
+												 t_training)
 
 		disc_real_image, disc_real_image_logits, disc_real_image_aux, \
 			disc_real_image_aux_logits = self.discriminator(
@@ -129,6 +118,22 @@ class GAN :
 		
 		g_loss = g_loss_1 + g_loss_2
 
+		real_correct_prediction = tf.equal(tf.argmax(disc_real_image_aux,1),
+										   tf.argmax(t_real_classes,1))
+
+		fake_correct_prediction = tf.equal(tf.argmax(disc_fake_image_aux, 1),
+										   tf.argmax(t_real_classes, 1))
+
+		wrong_correct_prediction = tf.equal(tf.argmax(disc_wrong_image_aux, 1),
+										   tf.argmax(t_wrong_classes, 1))
+
+		real_accuracy = tf.reduce_mean(tf.cast(real_correct_prediction,
+											   tf.float32))
+		fake_accuracy = tf.reduce_mean(tf.cast(fake_correct_prediction,
+											  tf.float32))
+		wrong_accuracy = tf.reduce_mean(tf.cast(wrong_correct_prediction,
+											  tf.float32))
+
 		t_vars = tf.trainable_variables()
 
 		print('List of all variables')
@@ -137,8 +142,7 @@ class GAN :
 			print(v)
 
 		d_vars = [var for var in t_vars if 'd_' in var.name]
-		g_vars = [var for var in t_vars if 'g_' in var.name or
-		                                    'a_' in var.name]
+		g_vars = [var for var in t_vars if 'g_' in var.name]
 
 		input_tensors = {
 			't_real_image' : t_real_image,
@@ -147,8 +151,7 @@ class GAN :
 			't_z' : t_z,
 			't_real_classes' : t_real_classes,
 			't_wrong_classes' : t_wrong_classes,
-			't_training' : t_training,
-			't_attn_input_seq' : t_attn_input_seq
+			't_training' : t_training
 
 		}
 
@@ -173,8 +176,9 @@ class GAN :
 			'disc_real_image_logits'    : disc_real_image_logits,
 			'disc_wrong_image_logits'   : disc_wrong_image,
 			'disc_fake_image_logits'    : disc_fake_image_logits,
-			'attn_span'                 : attn_spn,
-			'attn_sum': attn_sum
+			'real_accuracy': real_accuracy,
+			'fake_accuracy': fake_accuracy,
+			'wrong_accuracy': wrong_accuracy
 		}
 
 		return input_tensors, variables, loss, outputs, checks
@@ -182,10 +186,11 @@ class GAN :
 
 	# GENERATOR IMPLEMENTATION based on :
 	# https://github.com/carpedm20/DCGAN-tensorflow/blob/master/model.py
-	def generator(self, t_z, t_text_embedding, t_training, seq_outputs,
-	              output_size, time_steps) :
+	def generator(self, t_z, t_text_embedding, t_training) :
+		print('shape',t_z.get_shape())
 		s = self.options['image_size']
-		s2, s4, s8, s16 = int(s / 2), int(s / 4), int(s / 8), int(s / 16)
+		s2, s4, s8, s16, s32 = int(s / 2), int(s / 4), int(s / 8), \
+							   int(s / 16), int(s / 32)
 		h_neg_1 = ops.lrelu(slim.batch_norm(ops.conv2d(t_z,
 												  self.options['df_dim'] * 4,
 												  name='g_h_neg_1_conv'),
@@ -203,45 +208,36 @@ class GAN :
 													   name='g_h_neg_3_conv'),
 											is_training=t_training,
 											scope='g_bn_neg_3'))  # 16
-		h_neg_1_flat =  tf.reshape(h_neg_3, [self.options['batch_size'], -1])
+		h_neg_4 = ops.lrelu(slim.batch_norm(ops.conv2d(h_neg_3,
+													   self.options[
+														   'df_dim'],
+													   name='g_h_neg_4_conv'),
+											is_training=t_training,
+											scope='g_bn_neg_4'))  # 8
+		h_neg_4_flat =  tf.reshape(h_neg_4, [self.options['batch_size'], -1])
 		reduced_text_embedding = ops.lrelu(
 			ops.linear(t_text_embedding, self.options['t_dim'], 'g_embedding'))
-		z_concat = tf.concat(1, [h_neg_1_flat, reduced_text_embedding])
-		z_ = ops.linear(z_concat, self.options['gf_dim'] * 2 * s16 * s16,
+		z_concat = tf.concat(1, [h_neg_4_flat, reduced_text_embedding])
+		z_ = ops.linear(z_concat, self.options['gf_dim'] * 8 * s32 * s32,
 		                'g_h0_lin')
-		h0 = tf.reshape(z_, [-1, s16, s16, self.options['gf_dim'] * 8])
+		h0 = tf.reshape(z_, [-1, s32, s32, self.options['gf_dim'] * 8])
 		h0 = tf.nn.relu(slim.batch_norm(h0, is_training = t_training,
 		                                scope="g_bn0"))
 
-		h1 = ops.deconv2d(h0, [self.options['batch_size'], s8, s8,
+		h0_1 = ops.deconv2d(h0, [self.options['batch_size'], s16, s16,
+							   self.options['gf_dim'] * 4], name='g_h0_1')
+		h0_1 = tf.nn.relu(slim.batch_norm(h0_1, is_training=t_training,
+										scope="g_bn0_1"))
+
+		h1 = ops.deconv2d(h0_1, [self.options['batch_size'], s8, s8,
 		                       self.options['gf_dim'] * 4], name = 'g_h1')
 		h1 = tf.nn.relu(slim.batch_norm(h1, is_training = t_training,
 		                                scope="g_bn1"))
 
-
-		h1_flat = tf.reshape(h1, [self.options['batch_size'], -1])
-		h1_squeezed = ops.linear(h1_flat, output_size, 'g_h1_lin')
-		attn_sum, attn_span = self.attention(h1_squeezed, seq_outputs,
-		                                        output_size, time_steps)
-		attn_sum = tf.expand_dims(attn_sum, 1)
-		attn_sum = tf.expand_dims(attn_sum, 2)
-		tiled_attn = tf.tile(attn_sum, [1, s8, s8, 1], name = 'g_tiled_attention_1')
-		h1_concat = tf.concat(3, [h1, tiled_attn], name = 'h1_concat')
-
-		h2 = ops.deconv2d(h1_concat, [self.options['batch_size'], s4, s4,
+		h2 = ops.deconv2d(h1, [self.options['batch_size'], s4, s4,
 		                       self.options['gf_dim'] * 2], name = 'g_h2')
 		h2 = tf.nn.relu(slim.batch_norm(h2, is_training = t_training,
 		                                scope="g_bn2"))
-		#h2_flat = tf.reshape(h2, [self.options['batch_size'], -1])
-		#h2_squeezed = ops.linear(h2_flat, output_size, 'g_h2_lin')
-		#attn_sum_2, attn_span_2 = self.attention(h2_squeezed, seq_outputs,
-		#                                        output_size, time_steps, 
-		#						reuse=True)
-		#tf.get_variable_scope()._reuse = False
-		#attn_sum_2 = tf.expand_dims(attn_sum_2, 1)
-		#attn_sum_2 = tf.expand_dims(attn_sum_2, 2)
-		#tiled_attn_2 = tf.tile(attn_sum_2, [1, s4, s4, 1], name = 'g_tiled_attention_2')
-		#h2_concat = tf.concat(3, [h2, tiled_attn_2], name = 'h2_concat')
 		
 		h3 = ops.deconv2d(h2, [self.options['batch_size'], s2, s2,
 		                       self.options['gf_dim'] * 1], name = 'g_h3')
@@ -250,7 +246,7 @@ class GAN :
 
 		h4 = ops.deconv2d(h3, [self.options['batch_size'], s, s, 3],
 		                  name = 'g_h4')
-		return (tf.tanh(h4) / 2. + 0.5), attn_span, attn_sum
+		return (tf.tanh(h4) / 2. + 0.5)
 
 
 	# DISCRIMINATOR IMPLEMENTATION based on :
@@ -261,14 +257,15 @@ class GAN :
 			tf.get_variable_scope().reuse_variables()
 
 		h0 = ops.lrelu(
-			ops.conv2d(image, self.options['df_dim'], name = 'd_h0_conv'))  # 64
+			ops.conv2d(image, self.options['df_dim'], name = 'd_h0_conv'))  #
+		#  128
 		#print(h0)
 		h1 = ops.lrelu(slim.batch_norm(ops.conv2d(h0,
-		                                     self.options['df_dim'] * 2,
+		                                     self.options['df_dim'] * 8,
 		                                     name = 'd_h1_conv'),
 		                               reuse=reuse,
 		                               is_training = t_training,
-		                               scope = 'd_bn1'))  # 32
+		                               scope = 'd_bn1'))  # 64
 		#print("H1")
 		#print(h1)
 		h2 = ops.lrelu(slim.batch_norm(ops.conv2d(h1,
@@ -276,13 +273,20 @@ class GAN :
 		                                     name = 'd_h2_conv'),
 		                               reuse=reuse,
 		                               is_training = t_training,
-		                               scope = 'd_bn2'))  # 16
+		                               scope = 'd_bn2'))  # 32
 		h3 = ops.lrelu(slim.batch_norm(ops.conv2d(h2,
-		                                     self.options['df_dim'] * 6,
+		                                     self.options['df_dim'] * 4,
 		                                     name = 'd_h3_conv'),
 		                               reuse=reuse,
 		                               is_training = t_training,
-		                               scope = 'd_bn3'))  # 8
+		                               scope = 'd_bn3'))  # 16
+
+		h4 = ops.lrelu(slim.batch_norm(ops.conv2d(h3,
+												  self.options['df_dim'] * 2,
+												  name='d_h4_conv'),
+									   reuse=reuse,
+									   is_training=t_training,
+									   scope='d_bn4'))  # 8
 
 		# ADD TEXT EMBEDDING TO THE NETWORK
 		reduced_text_embeddings = ops.lrelu(ops.linear(t_text_embedding,
@@ -294,15 +298,15 @@ class GAN :
 		                           [1, 8, 8, 1],
 		                           name = 'tiled_embeddings')
 
-		h3_concat = tf.concat(3, [h3, tiled_embeddings], name = 'h3_concat')
-		h3_new = ops.lrelu(slim.batch_norm(ops.conv2d(h3_concat,
-												self.options['df_dim'] * 8,
-												name = 'd_h3_conv_new'),
+		h4_concat = tf.concat(3, [h4, tiled_embeddings], name = 'h4_concat')
+		h4_new = ops.lrelu(slim.batch_norm(ops.conv2d(h4_concat,
+												self.options['df_dim'] * 2,
+												name = 'd_h4_conv_new'),
 		                                reuse=reuse,
 		                                is_training = t_training,
-		                                scope = 'd_bn4'))  # 4
+		                                scope = 'd_bn4_new'))  # 4
 
-		h3_flat = tf.reshape(h3_new, [self.options['batch_size'], -1])
+		h3_flat = tf.reshape(h4_new, [self.options['batch_size'], -1])
 
 		h4 = ops.linear(h3_flat, 1, 'd_h4_lin_rw')
 		h4_aux = ops.linear(h3_flat, n_classes, 'd_h4_lin_ac')

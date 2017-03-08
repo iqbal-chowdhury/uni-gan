@@ -88,15 +88,15 @@ def main():
 	if not os.path.exists(model_dir):
 		os.makedirs(model_dir)
 
-	model_chkpnts_dir = join(model_dir, 'checkpoints')
+	model_chkpnts_dir = join(model_dir, 'checkpoints_stage_2')
 	if not os.path.exists(model_chkpnts_dir):
 		os.makedirs(model_chkpnts_dir)
 
-	model_samples_dir = join(model_dir, 'samples')
+	model_samples_dir = join(model_dir, 'samples_stage_2')
 	if not os.path.exists(model_samples_dir):
 		os.makedirs(model_samples_dir)
 
-	model_val_samples_dir = join(model_dir, 'val_samples')
+	model_val_samples_dir = join(model_dir, 'val_samples_stage_2')
 	if not os.path.exists(model_val_samples_dir):
 		os.makedirs(model_val_samples_dir)
 
@@ -171,7 +171,8 @@ def main():
 
 			# DISCR UPDATE
 			check_ts = [checks['d_loss1'], checks['d_loss2'],
-						checks['d_loss3']]
+						checks['d_loss3'], checks['real_accuracy'],
+						checks['fake_accuracy'], checks['wrong_accuracy']]
 
 			feed = {
 				input_tensors['t_real_image'].name: real_images,
@@ -183,11 +184,7 @@ def main():
 				input_tensors['t_training'].name: args.train
 			}
 
-			for c, d in zip(input_tensors['t_attn_input_seq'],
-							captions_words_features):
-				feed[c.name] = d
-
-			_, d_loss, gen, d1, d2, d3 = sess.run(
+			_, d_loss, gen, d1, d2, d3, ra, fa, wa  = sess.run(
 				[d_optim, loss['d_loss'], outputs['generator']] + check_ts,
 				feed_dict=feed)
 
@@ -195,20 +192,23 @@ def main():
 			print "d2", d2
 			print "d3", d3
 			print "D", d_loss
+			print "ra", ra
+			print "fa", fa
+			print "wa", wa
 
 			# GEN UPDATE
-			_, g_loss, gen, attn_spn = sess.run(
-				[g_optim, loss['g_loss'], outputs['generator'],
-				 checks['attn_span']],
-				feed_dict=feed)
+			_, g_loss, gen, fa = sess.run([g_optim, loss['g_loss'],
+									  outputs['generator'],
+									  checks['fake_accuracy']],
+									feed_dict=feed)
 
 			# GEN UPDATE TWICE, to make sure d_loss does not go to 0
-			_, g_loss, gen, attn_spn = sess.run(
-				[g_optim, loss['g_loss'], outputs['generator'],
-				 checks['attn_span']],
-				feed_dict=feed)
+			_, g_loss, gen, fa = sess.run([g_optim, loss['g_loss'],
+										   outputs['generator'],
+										 checks['fake_accuracy']],
+										feed_dict=feed)
 
-			print "LOSSES", d_loss, g_loss, batch_no, i, len(
+			print 'Fa: ', fa ,"\tLOSSES", d_loss, g_loss, batch_no, i, len(
 				loaded_data['image_list']) / args.batch_size
 			# print attn_spn
 			batch_no += 1
@@ -223,7 +223,8 @@ def main():
 												args.data_set)))
 
 				val_captions, val_image_files, val_image_caps, val_image_ids, \
-				val_captions_words_features, val_z_noise = get_val_caps_batch(
+				val_captions_words_features, val_noise_lst, stage_1_img_list = \
+											get_val_caps_batch(
 												args.batch_size,
 												loaded_data,
 												args.data_set,
@@ -232,24 +233,24 @@ def main():
 												stage_1_val_dir,
 												args.attn_time_steps,
 												args.attn_word_feat_length,
-												args.z_dim)
+												args.z_dim, 8)
 				shutil.rmtree(model_val_samples_dir)
 				os.makedirs(model_val_samples_dir)
-				val_feed = {
-					input_tensors['t_real_caption'].name: val_captions,
-					input_tensors['t_z'].name: val_z_noise,
-					input_tensors['t_training'].name: True
-				}
-				for c, d in zip(input_tensors['t_attn_input_seq'],
-								val_captions_words_features):
-					val_feed[c.name] = d
-				val_gen, val_attn_spn = sess.run(
-					[outputs['generator'], checks['attn_span']],
-					feed_dict=val_feed)
-				save_for_viz_val(model_val_samples_dir, val_gen,
-								 val_image_files, val_image_caps,
-								 val_image_ids, args.image_size,
-								 0, val_attn_spn)
+				for noise_id, val_z_noise in enumerate(val_noise_lst):
+					val_feed = {
+						input_tensors['t_real_caption'].name: val_captions,
+						input_tensors['t_z'].name: val_z_noise,
+						input_tensors['t_training'].name: True
+					}
+
+					[val_gen] = sess.run(
+						[outputs['generator']],
+						feed_dict=val_feed)
+					save_for_viz_val(model_val_samples_dir, val_gen,
+									 val_image_files, val_image_caps,
+									 val_image_ids, args.image_size,
+									 0, None, val_z_noise, stage_1_img_list,
+									 noise_id)
 
 		if i % 1 == 0:
 			epoch_dir = join(model_chkpnts_dir, str(i))
@@ -260,8 +261,8 @@ def main():
 										"model_after_{}_epoch_{}.ckpt".
 										format(args.data_set, i)))
 			val_captions, val_image_files, val_image_caps, val_image_ids, \
-			val_captions_words_features, val_z_noise = get_val_caps_batch(
-													args.batch_size,
+			val_captions_words_features, val_noise_lst, \
+			stage_1_img_list  = get_val_caps_batch(args.batch_size,
 													 loaded_data,
 													 args.data_set,
 													 'val',
@@ -269,24 +270,24 @@ def main():
 													 stage_1_val_dir,
 													 args.attn_time_steps,
 													 args.attn_word_feat_length,
-													args.z_dim)
+													args.z_dim, 8)
 			shutil.rmtree(model_val_samples_dir)
 			os.makedirs(model_val_samples_dir)
-			val_feed = {
-				input_tensors['t_real_caption'].name: val_captions,
-				input_tensors['t_z'].name: val_z_noise,
-				input_tensors['t_training'].name: True
-			}
-			for c, d in zip(input_tensors['t_attn_input_seq'],
-							val_captions_words_features):
-				val_feed[c.name] = d
-			val_gen, val_attn_spn = sess.run(
-				[outputs['generator'], checks['attn_span']],
-				feed_dict=val_feed)
-			save_for_viz_val(model_val_samples_dir, val_gen,
-							 val_image_files, val_image_caps,
-							 val_image_ids, args.image_size,
-							 0, val_attn_spn)
+			for noise_id, val_z_noise in enumerate(val_noise_lst):
+				val_feed = {
+					input_tensors['t_real_caption'].name: val_captions,
+					input_tensors['t_z'].name: val_z_noise,
+					input_tensors['t_training'].name: True
+				}
+
+				[val_gen] = sess.run(
+					[outputs['generator']],
+					feed_dict=val_feed)
+				save_for_viz_val(model_val_samples_dir, val_gen,
+								 val_image_files, val_image_caps,
+								 val_image_ids, args.image_size,
+								 0, None, val_z_noise, stage_1_img_list,
+									 noise_id)
 
 
 def load_training_data(data_dir, data_set, caption_vector_length, n_classes):
@@ -378,7 +379,8 @@ def load_training_data(data_dir, data_set, caption_vector_length, n_classes):
 
 
 def save_for_viz_val(data_dir, generated_images, image_files, image_caps,
-					 image_ids, image_size, id, val_attn_spn):
+					 image_ids, image_size, id, val_attn_spn, val_z_noise,
+					 stage_1_img_list, noise_id):
 	for i in range(0, generated_images.shape[0]):
 		image_dir = join(data_dir, str(image_ids[i]))
 		if not os.path.exists(image_dir):
@@ -400,12 +402,14 @@ def save_for_viz_val(data_dir, generated_images, image_files, image_caps,
 		if not os.path.exists(caps_dir):
 			with open(caps_dir, "w") as text_file:
 				text_file.write(image_caps[i] + "\n")
-				text_file.write("\t".join(["{}".format(val_attn_) for
-										   val_attn_ in val_attn_spn[i]]))
-
+		noise_img_id = stage_1_img_list[i][noise_id]
 		fake_images_255 = (generated_images[i, :, :, :])
-		scipy.misc.imsave(join(image_dir, 'fake_image_{}.jpg'.format(id)),
+		scipy.misc.imsave(join(image_dir, 'fake_image_{}.jpg'.format(noise_img_id)),
 						  fake_images_255)
+
+		stage_1_255 = (val_z_noise[i, :, :, :])
+		scipy.misc.imsave(join(image_dir, 'stage_1_image_{}.jpg'.format(noise_img_id)),
+						  stage_1_255)
 
 
 def save_for_vis(data_dir, real_images, generated_images, image_files,
@@ -435,7 +439,7 @@ def save_for_vis(data_dir, real_images, generated_images, image_files,
 
 def get_val_caps_batch(batch_size, loaded_data, data_set, split, data_dir,
 					   stage_1_dir, attn_time_steps, attn_word_feat_length,
-					   z_dim):
+					   z_dim, max_samples):
 	if data_set == 'mscoco':
 		captions = np.zeros((batch_size, loaded_data['max_caps_len']))
 		captions_words_features = np.zeros((batch_size, attn_time_steps,
@@ -502,12 +506,17 @@ def get_val_caps_batch(batch_size, loaded_data, data_set, split, data_dir,
 		captions = np.zeros((batch_size, loaded_data['max_caps_len']))
 		captions_words_features = np.zeros((batch_size, attn_time_steps,
 											attn_word_feat_length))
-		z_noise = np.zeros((batch_size, z_dim, z_dim, 3))
-		batch_idx = np.random.randint(0, loaded_data['val_data_len'],
+		z_noise_list = []
+		for n_cnt in range(max_samples):
+			z_noise_list.append(np.zeros((batch_size, z_dim, z_dim, 3)))
+		#z_noise = np.zeros((batch_size, z_dim, z_dim, 3))
+		max_pick = int(loaded_data['val_data_len']/batch_size) * batch_size
+		batch_idx = np.random.randint(0, max_pick,
 									  size=batch_size)
 		image_ids = np.take(loaded_data['val_img_list'], batch_idx)
 		image_files = []
 		image_caps = []
+		stage_1_img_list = []
 		for idx, image_id in enumerate(image_ids):
 			image_file = join(data_dir,
 							  'flowers/jpg/' + image_id)
@@ -533,14 +542,22 @@ def get_val_caps_batch(batch_size, loaded_data, data_set, split, data_dir,
 				word_feats = np.concatenate((word_feats, pad_vecs), axis=0)
 
 			captions_words_features[idx, :, :] = word_feats
-			rand_noise_image = random.randint(0, 30)
-			noise_img_path = join(stage_1_dir,
-								  str(image_id), str(random_caption),
-								  str(rand_noise_image)
-								  + '.jpg')
-			z_noise[idx, :, :, :] = image_processing.load_image_array_flowers(
-														noise_img_path,
-														z_dim)
+			num_files = len(os.walk(join(stage_1_dir,
+										 str(image_id),
+										 str(random_caption))).next()[2])
+			stage_1_imgs = []
+			for noise_img_cnt in range(max_samples):
+				rand_noise_image = random.randint(2, num_files)
+				stage_1_imgs.append(rand_noise_image)
+				noise_img_path = join(stage_1_dir,
+									  str(image_id), str(random_caption),
+									  str(rand_noise_image)
+									  + '.jpg')
+				z_noise_list[noise_img_cnt][idx, :, :, :] = \
+					image_processing.load_image_array_flowers(
+															noise_img_path,
+															z_dim)
+			stage_1_img_list.append(stage_1_imgs)
 			image_caps.append(loaded_data['str_captions']
 							  [image_id][random_caption])
 			image_files.append(image_file)
@@ -554,7 +571,7 @@ def get_val_caps_batch(batch_size, loaded_data, data_set, split, data_dir,
 
 		# z_noise = np.random.uniform(-1, 1, [batch_size, z_dim])
 		return captions, image_files, image_caps, image_ids, \
-			   captions_words_features, z_noise
+			   captions_words_features, z_noise_list, stage_1_img_list
 
 
 def get_training_batch(batch_no, batch_size, image_size, z_dim, split,
@@ -627,8 +644,10 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split,
 				word_feats = np.concatenate((word_feats, pad_vecs), axis=0)
 			# print(idx,word_feats.shape, len(spacy_cap_obj))
 			captions_words_features[idx, :, :] = word_feats
-
-			rand_noise_image = random.randint(0, 30)
+			#
+			num_files = len(os.walk(join(stage_1_dir, str(image_id),
+				 						str(random_caption))).next()[2])
+			rand_noise_image = random.randint(2, num_files)
 			noise_img_path = join(stage_1_dir, str(image_id),
 								  str(random_caption), str(rand_noise_image)
 								  + '.jpg')
@@ -730,7 +749,10 @@ def get_training_batch(batch_no, batch_size, image_size, z_dim, split,
 				word_feats = np.concatenate((word_feats, pad_vecs), axis=0)
 
 			captions_words_features[cnt, :, :] = word_feats
-			rand_noise_image = random.randint(0, 30)
+			num_files = len(os.walk(join(stage_1_dir,
+										 str(loaded_data['image_list'][idx]),
+											str(random_caption))).next()[2])
+			rand_noise_image = random.randint(2, num_files)
 			noise_img_path = join(stage_1_dir,
 								  str(loaded_data['image_list'][idx]),
 								  str(random_caption), str(rand_noise_image)
